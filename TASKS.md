@@ -142,7 +142,7 @@ Update truthfully. Do not check an item without evidence.
 - [x] production builds pass
 - [x] live tests recorded
 - [ ] ten rehearsals
-- [ ] fresh clone setup
+- [x] fresh clone setup
 - [x] secret scan
 - [ ] README complete
 - [x] architecture diagram

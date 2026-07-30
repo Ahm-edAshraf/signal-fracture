@@ -34,7 +34,7 @@ This file is intentionally conservative. An item is checked only after public or
 ## Release
 
 - [x] `bun run check` passes from a clean tree
-- [ ] Fresh-clone setup verified
+- [x] Fresh-clone setup verified
 - [x] Production Convex deployment
 - [x] Persistent worker deployed with one replica
 - [x] Live evidence dashboard and guarded operator console deployed

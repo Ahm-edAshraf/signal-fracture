@@ -53,3 +53,9 @@ Scenario completion writes the metrics, causal timeline, and deterministic summa
 Status: accepted
 
 The public dashboard reads a dedicated Convex projection containing only public aliases, synthetic scenario facts, canonical decisions, delivery metadata, truncated event references, and aggregate reliability values. Addressing fields never enter the response. Operator mutations pass through server-side Next.js routes authenticated by a short-lived HttpOnly/SameSite cookie; the Convex operator secret is never shipped to browser code.
+
+## ADR-010 — Provider acknowledgement ambiguity is explicit
+
+Status: accepted
+
+After Caspian accepts an outbound send, the worker retries only the Convex acknowledgement and does not call `sendMessage` again for a transient persistence error. This prevents avoidable duplicates while the process remains alive. A hard crash after provider acceptance but before the acknowledgement is durably stored remains an unavoidable ambiguity because the installed SDK does not expose an outbound idempotency key. Recovery may resend that logical delivery; the dashboard and audit log retain the stable logical effect key and attempt history, and the project does not claim exactly-once provider delivery.

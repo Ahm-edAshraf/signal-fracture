@@ -2,6 +2,9 @@ import type { CommClient } from "caspian-sdk";
 import type { AgentState } from "./state";
 import { logPublic } from "./publicLog";
 
+type EventClient = Pick<CommClient, "dispatchPending" | "events">;
+type CheckpointState = Pick<AgentState, "loadCheckpoint" | "saveCheckpoint">;
+
 type LoopOptions = {
   pollIntervalMs: number;
   maxBackoffMs: number;
@@ -23,7 +26,9 @@ async function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-export async function latestEventSequence(client: CommClient): Promise<number> {
+export async function latestEventSequence(
+  client: EventClient,
+): Promise<number> {
   let lastSeq = 0;
   while (true) {
     const events = await client.events({ afterSeq: lastSeq, limit: 500 });
@@ -34,8 +39,8 @@ export async function latestEventSequence(client: CommClient): Promise<number> {
 }
 
 export async function ensureCheckpoint(
-  client: CommClient,
-  state: AgentState,
+  client: EventClient,
+  state: CheckpointState,
 ): Promise<number> {
   const stored = await state.loadCheckpoint();
   if (stored !== null) return stored;
@@ -45,8 +50,8 @@ export async function ensureCheckpoint(
 }
 
 export async function dispatchOnce(
-  client: CommClient,
-  state: AgentState,
+  client: EventClient,
+  state: CheckpointState,
   checkpoint: number,
 ): Promise<number> {
   const next = await client.dispatchPending(checkpoint);
@@ -55,15 +60,28 @@ export async function dispatchOnce(
 }
 
 export async function runDurableEventLoop(
-  client: CommClient,
-  state: AgentState,
+  client: EventClient,
+  state: CheckpointState,
   options: LoopOptions,
 ): Promise<void> {
-  let checkpoint = await ensureCheckpoint(client, state);
+  let checkpoint: number | null = null;
+  let bootstrapBaseline: number | null = null;
   let backoff = options.pollIntervalMs;
 
   while (!options.signal.aborted) {
     try {
+      if (checkpoint === null) {
+        const stored = await state.loadCheckpoint();
+        if (stored !== null) {
+          checkpoint = stored;
+        } else {
+          // Retain the first observed baseline if persistence is temporarily
+          // unavailable. Re-scanning a later baseline could skip new events.
+          bootstrapBaseline ??= await latestEventSequence(client);
+          await state.saveCheckpoint(bootstrapBaseline);
+          checkpoint = bootstrapBaseline;
+        }
+      }
       checkpoint = await dispatchOnce(client, state, checkpoint);
       backoff = options.pollIntervalMs;
       await delay(options.pollIntervalMs, options.signal);

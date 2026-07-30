@@ -99,6 +99,7 @@ Private addresses, connection identifiers, conversation identifiers, and sender 
 - Production Convex schema and functions deployed successfully.
 - Persistent Railway worker: `https://agent-production-32ad.up.railway.app`
 - Railway deployment status: SUCCESS; one running service replica.
+- Recovery-hardening deployment `64d9cbb2-9282-4b91-b63e-2f194783bd7e`: SUCCESS.
 - `/healthz`: `{"status":"ok"}`
 - `/readyz`: `{"status":"ready","channels":["email","telegram","discord"]}`
 - The local consumer was stopped before production startup so only one worker dispatches events.
@@ -106,3 +107,12 @@ Private addresses, connection identifiers, conversation identifiers, and sender 
 - Guarded operator login rejects an incorrect secret with HTTP 401 and issues an HttpOnly, SameSite=Strict cookie after valid authentication.
 - Playwright production checks: 3/3 pass (qualified channels, operator auth boundary, public payload redaction).
 - Preliminary privacy-reviewed screenshots: `docs/screenshots/dashboard-standby.png` and `docs/screenshots/operator-login.png`.
+- Worker recovery regression tests verify that a failed initial checkpoint write retains the original gateway baseline, transient stale-claim recovery errors do not terminate the worker, and a successful provider send is not repeated while its database acknowledgement retries.
+
+## Fresh public clone — PASS
+
+- Source: public `main` branch at commit `67c1a2e`
+- Location: isolated temporary directory with no project `.env.local`
+- `bun install --frozen-lockfile`: PASS
+- `bun run check`: PASS
+- Result at that commit: 28 unit tests, 10 integration tests, package/worker build, and all seven Next.js routes built successfully.

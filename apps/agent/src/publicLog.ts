@@ -7,6 +7,7 @@ type PublicLogEvent = {
   attempt?: number;
   permanent?: boolean;
   backoffMs?: number;
+  operation?: "claim" | "recovery_or_claim";
   channels?: { channel: string; status: string }[];
 };
 

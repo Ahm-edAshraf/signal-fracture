@@ -37,6 +37,8 @@ The implementation is active, but submission readiness is not claimed yet.
 
 See [`docs/LIVE_TEST_EVIDENCE.md`](docs/LIVE_TEST_EVIDENCE.md) for redacted event evidence and [`TASKS.md`](TASKS.md) for the deliberately conservative completion checklist.
 
+![Signal Fracture live standby dashboard](docs/screenshots/dashboard-standby.png)
+
 ## Why Caspian is essential
 
 Caspian is the shared communication plane, not a notification add-on:
