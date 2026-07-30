@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "composite": false,
+    "noEmit": true,
+    "types": ["vite/client"]
+  },
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "convex/**/*.ts",
+    "packages/**/*.ts",
+    "tests/**/*.ts",
+    "eslint.config.mjs"
+  ]
+}
