@@ -1,5 +1,6 @@
 import { parseParticipantCommand } from "../../apps/agent/src/commandRouter";
 import { stripEmailQuotedReply } from "../../apps/agent/src/emailQuoteStripper";
+import { readAgentEnvironment } from "../../apps/agent/src/env";
 import {
   createRoleCode,
   hashRoleCode,
@@ -57,5 +58,19 @@ describe("participant workflow utilities", () => {
     expect(verifyRoleCode(code, secret, 2_000)).toBeNull();
     expect(verifyRoleCode(`${code}tampered`, secret, 1_000)).toBeNull();
     expect(hashRoleCode(code)).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("uses the platform PORT for health checks when no explicit port is set", () => {
+    const env = readAgentEnvironment({
+      CASPIAN_API_KEY: "test-key",
+      CASPIAN_BASE_URL: "https://api.example.test",
+      CONVEX_URL: "https://convex.example.test",
+      OPERATOR_SECRET: "test-operator-secret",
+      GEMINI_API_KEY: "test-gemini-key",
+      GEMINI_PRIMARY_MODEL: "primary-model",
+      GEMINI_FALLBACK_MODEL: "fallback-model",
+      PORT: "8080",
+    });
+    expect(env.AGENT_HEALTH_PORT).toBe(8080);
   });
 });

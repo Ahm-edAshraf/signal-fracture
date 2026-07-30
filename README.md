@@ -6,6 +6,8 @@
 
 Signal Fracture runs a short fictional coordination drill across real communication channels. It deliberately gives each role a different subset of facts, applies deterministic consequences to their decisions, detects contradictions, and reconstructs **who knew what, when**.
 
+[View the live qualification surface](https://signal-fracture.vercel.app)
+
 ## The 20-second explanation
 
 At Asteria Station, a Field Engineer on Telegram sees rising pressure and seals Bay 3. Mission Control on Discord still has a stale map and routes Crew 7 through Bay 3. An Operations Director on Email delays escalation. Each decision makes sense from that role's local view, but the global plan is unsafe. Signal Fracture exposes the communication fault and privately guides the three roles to reconcile it.
@@ -31,6 +33,7 @@ The implementation is active, but submission readiness is not claimed yet.
 | Discord            | Connection active; real inbound/reply/proactive test pending                              |
 | Durable state      | Convex dev deployment, atomic inbound claim, monotonic checkpoint, outbox                 |
 | Canonical scenario | Pure and Convex integration flows pass; live three-channel rehearsal pending              |
+| Public deployment  | Qualification surface live on Vercel; production Convex functions deployed                |
 
 See [`docs/LIVE_TEST_EVIDENCE.md`](docs/LIVE_TEST_EVIDENCE.md) for redacted event evidence and [`TASKS.md`](TASKS.md) for the deliberately conservative completion checklist.
 

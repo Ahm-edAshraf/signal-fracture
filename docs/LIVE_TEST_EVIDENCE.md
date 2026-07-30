@@ -80,3 +80,15 @@ Private addresses, connection identifiers, conversation identifiers, and sender 
 - `.env.example` uses those exact IDs.
 - The pre-existing shell values did not match an available ID and must be replaced in the eventual worker deployment configuration.
 - No API key or pre-existing value was displayed.
+
+## Public infrastructure — PARTIAL PASS
+
+- Public repository: <https://github.com/Ahm-edAshraf/signal-fracture>
+- Public qualification surface: <https://signal-fracture.vercel.app>
+- Both returned HTTP 200 on 31 July 2026 MYT.
+- Production Convex schema and functions deployed successfully.
+- Persistent Railway worker: `https://agent-production-32ad.up.railway.app`
+- Railway deployment status: SUCCESS; one running service replica.
+- `/healthz`: `{"status":"ok"}`
+- `/readyz`: `{"status":"ready","channels":["email","telegram","discord"]}`
+- The local consumer was stopped before production startup so only one worker dispatches events.

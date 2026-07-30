@@ -33,11 +33,11 @@ This file is intentionally conservative. An item is checked only after public or
 
 ## Release
 
-- [ ] `bun run check` passes from a clean tree
+- [x] `bun run check` passes from a clean tree
 - [ ] Fresh-clone setup verified
-- [ ] Production Convex deployment
-- [ ] Persistent worker deployed with one replica
-- [ ] Dashboard deployed
+- [x] Production Convex deployment
+- [x] Persistent worker deployed with one replica
+- [x] Qualification surface deployed; live dashboard upgrade pending Gate A
 - [ ] Repository public and checked incognito
 - [ ] Screenshots captured and privacy-reviewed
 - [ ] Primary and backup videos recorded

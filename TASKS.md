@@ -131,26 +131,26 @@ Update truthfully. Do not check an item without evidence.
 
 ## Release
 
-- [ ] deployed Convex
-- [ ] deployed web
-- [ ] deployed persistent worker
+- [x] deployed Convex
+- [x] deployed web
+- [x] deployed persistent worker
 - [x] health endpoint
 - [x] readiness endpoint
 - [x] root `bun run check`
 - [x] unit tests pass
 - [x] integration tests pass
 - [x] production builds pass
-- [ ] live tests recorded
+- [x] live tests recorded
 - [ ] ten rehearsals
 - [ ] fresh clone setup
-- [ ] secret scan
+- [x] secret scan
 - [ ] README complete
 - [x] architecture diagram
 - [ ] screenshots
 - [ ] video take 1
 - [ ] video backup
 - [ ] Devpost copy
-- [ ] repository public
+- [x] repository public
 - [ ] links tested incognito
 - [ ] submitted before internal deadline
 

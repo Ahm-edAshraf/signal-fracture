@@ -26,5 +26,8 @@ export type AgentEnvironment = z.infer<typeof envSchema>;
 export function readAgentEnvironment(
   source: Record<string, string | undefined> = process.env,
 ): AgentEnvironment {
-  return envSchema.parse(source);
+  return envSchema.parse({
+    ...source,
+    AGENT_HEALTH_PORT: source.AGENT_HEALTH_PORT ?? source.PORT,
+  });
 }

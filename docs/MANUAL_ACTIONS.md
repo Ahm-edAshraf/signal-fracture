@@ -27,7 +27,6 @@ No token or configuration change is needed. If no inbound event appears, verify 
 
 - Confirm the official deadline and optional interaction-handler policy with organizers.
 - Record two video takes after the live three-channel rehearsal is green.
-- Publish the repository only after the secret and participant-data review.
 - Submit the final Devpost entry after all evidence links are public.
 
 ## Completed autonomously
@@ -35,5 +34,9 @@ No token or configuration change is needed. If no inbound event appears, verify 
 - Authenticated Caspian channel discovery
 - Named Email, Telegram, and Discord connection verification
 - Convex project and dev deployment creation
+- Convex production deployment
+- Vercel production deployment for the qualification surface
+- Railway persistent worker deployment and readiness verification
 - Real Email inbound, same-thread reply, and proactive persisted-conversation send
 - GitHub, Vercel, and Railway CLI authentication availability checks
+- Public GitHub repository creation after secret and participant-data review
