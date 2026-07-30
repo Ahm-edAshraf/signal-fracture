@@ -183,6 +183,29 @@ export const publicSummary = query({
   },
 });
 
+export const operatorCurrent = query({
+  args: { operatorSecret: v.string(), demoTenant: v.string() },
+  handler: async (ctx, args) => {
+    requireOperatorSecret(args.operatorSecret);
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_tenant_status", (q) => q.eq("demoTenant", args.demoTenant))
+      .order("desc")
+      .first();
+    if (session === null) return null;
+    const roles = await ctx.db
+      .query("roles")
+      .withIndex("by_session_role", (q) => q.eq("sessionId", session._id))
+      .collect();
+    return {
+      sessionId: session._id,
+      publicCode: session.publicCode,
+      status: session.status,
+      roles: roles.map(({ roleKey, status }) => ({ roleKey, status })),
+    };
+  },
+});
+
 export const abortByConversation = mutation({
   args: { conversationId: v.string(), now: v.number() },
   handler: async (ctx, args) => {

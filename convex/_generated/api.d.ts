@@ -11,7 +11,9 @@
 import type * as auth from "../auth.js";
 import type * as checkpoint from "../checkpoint.js";
 import type * as contacts from "../contacts.js";
+import type * as dashboard from "../dashboard.js";
 import type * as decisions from "../decisions.js";
+import type * as health from "../health.js";
 import type * as inbound from "../inbound.js";
 import type * as outbox from "../outbox.js";
 import type * as reportData from "../reportData.js";
@@ -31,7 +33,9 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   checkpoint: typeof checkpoint;
   contacts: typeof contacts;
+  dashboard: typeof dashboard;
   decisions: typeof decisions;
+  health: typeof health;
   inbound: typeof inbound;
   outbox: typeof outbox;
   reportData: typeof reportData;

@@ -21,6 +21,11 @@ logPublic({
     status,
   })),
 });
+const healthHeartbeat = setInterval(() => {
+  void runtime.state.recordChannelHealth(runtime.channels).catch(() => {
+    logPublic({ event: "channel_health_heartbeat_failed" });
+  });
+}, 30_000);
 
 await Promise.all([
   runDurableEventLoop(runtime.client, runtime.state, {
@@ -35,4 +40,5 @@ await Promise.all([
     maxAttempts: runtime.env.OUTBOX_MAX_ATTEMPTS,
   }),
 ]);
+clearInterval(healthHeartbeat);
 healthServer.close();

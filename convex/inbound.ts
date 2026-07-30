@@ -19,6 +19,9 @@ export const claim = mutation({
       .unique();
 
     if (existing !== null) {
+      await ctx.db.patch(existing._id, {
+        duplicateCount: (existing.duplicateCount ?? 0) + 1,
+      });
       return {
         duplicate: true,
         rateLimited: false,
@@ -116,6 +119,10 @@ export const stats = query({
         .length,
       duplicateSafeRecords: new Set(events.map(({ messageId }) => messageId))
         .size,
+      duplicateCount: events.reduce(
+        (sum, event) => sum + (event.duplicateCount ?? 0),
+        0,
+      ),
       contactChannels: [
         ...new Set(contacts.map(({ channel }) => channel)),
       ].sort(),

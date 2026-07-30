@@ -41,3 +41,15 @@ When no checkpoint exists, the worker records the current highest gateway sequen
 Status: accepted
 
 A successful `sendMessage` call records a `sent` delivery plus provider evidence and latency. The implementation does not invent read receipts or claim a participant acknowledged the message.
+
+## ADR-008 — Deterministic report before optional narration
+
+Status: accepted
+
+Scenario completion writes the metrics, causal timeline, and deterministic summary atomically before any model call. The worker may ask Gemini to turn only that frozen evidence into concise prose. Invalid output or a total model outage leaves the authoritative deterministic report available and does not roll back completion.
+
+## ADR-009 — Public-safe evidence plane and server-only operator authority
+
+Status: accepted
+
+The public dashboard reads a dedicated Convex projection containing only public aliases, synthetic scenario facts, canonical decisions, delivery metadata, truncated event references, and aggregate reliability values. Addressing fields never enter the response. Operator mutations pass through server-side Next.js routes authenticated by a short-lived HttpOnly/SameSite cookie; the Convex operator secret is never shipped to browser code.

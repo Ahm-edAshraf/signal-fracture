@@ -40,3 +40,41 @@ export const getPublic = query({
     };
   },
 });
+
+export const getNarrationInput = query({
+  args: {
+    operatorSecret: v.string(),
+    sessionId: v.id("sessions"),
+  },
+  handler: async (ctx, args) => {
+    requireOperatorSecret(args.operatorSecret);
+    const report = await ctx.db
+      .query("reports")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .order("desc")
+      .first();
+    if (report === null) return null;
+    return {
+      reportId: report._id,
+      metrics: report.metrics,
+      deterministicSummary: report.deterministicSummary,
+    };
+  },
+});
+
+export const attachNarrative = mutation({
+  args: {
+    operatorSecret: v.string(),
+    reportId: v.id("reports"),
+    narrative: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireOperatorSecret(args.operatorSecret);
+    const report = await ctx.db.get(args.reportId);
+    if (report === null) return false;
+    const narrative = args.narrative.trim();
+    if (narrative.length === 0 || narrative.length > 900) return false;
+    await ctx.db.patch(report._id, { narrative });
+    return true;
+  },
+});

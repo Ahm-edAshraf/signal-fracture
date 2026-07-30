@@ -58,27 +58,37 @@ Private addresses, connection identifiers, conversation identifiers, and sender 
 - Atomic duplicate test: PASS in `tests/integration/convexAtomicity.test.ts`
 - Monotonic checkpoint test: PASS
 
-## Telegram — CONNECTION PASS / MESSAGE TEST PENDING
+## Telegram inbound, reply, and proactive send — PASS
 
-- Connection status returned by installed SDK: active
-- Real inbound: pending participant `HELP`
-- Real reply: pending
-- Proactive send: pending persisted inbound conversation
-- No claim of message-path success is made yet.
+- Connection status: active
+- Inbound sequence: 2219; status: received
+- Inbound message hash: `ecd727331a8c23ef`
+- Shared-handler reply sequence: 2220; status: sent
+- Reply message hash: `7c6e4b246a926bcb`
+- Persisted conversation hash for both: `c107b71f65ea5639`
+- Proactive send sequence: 2223; status: sent
+- Proactive message hash: `7cf821efbeb39c18`
+- Proactive conversation hash: `c107b71f65ea5639`
+- Convex production evidence: inbound claimed and processed exactly once.
 
-## Discord — CONNECTION PASS / MESSAGE TEST PENDING
+## Discord inbound, reply, and proactive send — PASS
 
-- Connection status returned by installed SDK: active
-- Real inbound: pending participant `HELP`
-- Real reply: pending
-- Proactive send: pending persisted inbound conversation
-- No claim of message-path success is made yet.
+- Connection status: active
+- Inbound sequence: 2221; status: received
+- Inbound message hash: `34d54ca3f7366e48`
+- Shared-handler reply sequence: 2222; status: sent
+- Reply message hash: `c8df4db81c5b32cf`
+- Persisted conversation hash for both: `7cf9b67003adba3a`
+- Proactive send sequence: 2224; status: sent
+- Proactive message hash: `04de306c46e9a0a3`
+- Proactive conversation hash: `7cf9b67003adba3a`
+- Convex production evidence: inbound claimed and processed exactly once.
 
-## Gemini model discovery — PASS WITH CONFIG FOLLOW-UP
+## Gemini model discovery and deployment configuration — PASS
 
 - Authenticated model listing confirms the API IDs `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` exist.
 - `.env.example` uses those exact IDs.
-- The pre-existing shell values did not match an available ID and must be replaced in the eventual worker deployment configuration.
+- The Railway worker uses those exact verified IDs.
 - No API key or pre-existing value was displayed.
 
 ## Public infrastructure — PARTIAL PASS
@@ -92,3 +102,7 @@ Private addresses, connection identifiers, conversation identifiers, and sender 
 - `/healthz`: `{"status":"ok"}`
 - `/readyz`: `{"status":"ready","channels":["email","telegram","discord"]}`
 - The local consumer was stopped before production startup so only one worker dispatches events.
+- Public dashboard API returns only aliases, synthetic facts, canonical decisions, delivery metadata, truncated event references, and aggregate reliability values.
+- Guarded operator login rejects an incorrect secret with HTTP 401 and issues an HttpOnly, SameSite=Strict cookie after valid authentication.
+- Playwright production checks: 3/3 pass (qualified channels, operator auth boundary, public payload redaction).
+- Preliminary privacy-reviewed screenshots: `docs/screenshots/dashboard-standby.png` and `docs/screenshots/operator-login.png`.

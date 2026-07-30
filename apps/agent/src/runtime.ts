@@ -5,7 +5,10 @@ import {
 import { readAgentEnvironment } from "./env";
 import { registerSharedHandler } from "./registerSharedHandler";
 import { AgentState } from "./state";
-import { GeminiDecisionClassifier } from "@signal-fracture/ai";
+import {
+  GeminiDecisionClassifier,
+  GeminiReportNarrator,
+} from "@signal-fracture/ai";
 
 export async function createAgentRuntime() {
   const env = readAgentEnvironment();
@@ -30,6 +33,12 @@ export async function createAgentRuntime() {
     confidenceThreshold: env.DECISION_CONFIDENCE_THRESHOLD,
     timeoutMs: env.GEMINI_TIMEOUT_MS,
   });
+  const narrator = new GeminiReportNarrator({
+    apiKey: env.GEMINI_API_KEY,
+    primaryModel: env.GEMINI_PRIMARY_MODEL,
+    fallbackModel: env.GEMINI_FALLBACK_MODEL,
+    timeoutMs: env.GEMINI_TIMEOUT_MS,
+  });
   const channels = await connectConfiguredChannels(client, {
     apiKey: env.CASPIAN_API_KEY,
     baseUrl: env.CASPIAN_BASE_URL,
@@ -43,6 +52,7 @@ export async function createAgentRuntime() {
       ? {}
       : { discordBotToken: env.DISCORD_BOT_TOKEN }),
   });
-  registerSharedHandler(client, state, classifier);
-  return { channels, classifier, client, env, state };
+  await state.recordChannelHealth(channels).catch(() => undefined);
+  registerSharedHandler(client, state, classifier, narrator);
+  return { channels, classifier, client, env, narrator, state };
 }

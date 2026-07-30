@@ -29,11 +29,11 @@ The implementation is active, but submission readiness is not claimed yet.
 | Official SDK       | Exact `caspian-sdk` 0.6.1 pin and installed type audit                                    |
 | One handler        | One registration in [`registerSharedHandler.ts`](apps/agent/src/registerSharedHandler.ts) |
 | Email              | Real inbound, shared-handler reply, and proactive persisted-conversation send pass        |
-| Telegram           | Connection active; real inbound/reply/proactive test pending                              |
-| Discord            | Connection active; real inbound/reply/proactive test pending                              |
+| Telegram           | Real inbound, shared-handler reply, and proactive persisted-conversation send pass        |
+| Discord            | Real inbound, shared-handler reply, and proactive persisted-conversation send pass        |
 | Durable state      | Convex dev deployment, atomic inbound claim, monotonic checkpoint, outbox                 |
 | Canonical scenario | Pure and Convex integration flows pass; live three-channel rehearsal pending              |
-| Public deployment  | Qualification surface live on Vercel; production Convex functions deployed                |
+| Public deployment  | Live evidence dashboard on Vercel; production Convex functions and worker deployed        |
 
 See [`docs/LIVE_TEST_EVIDENCE.md`](docs/LIVE_TEST_EVIDENCE.md) for redacted event evidence and [`TASKS.md`](TASKS.md) for the deliberately conservative completion checklist.
 
@@ -152,6 +152,12 @@ Live tests are opt-in and never message a real account by default:
 ENABLE_LIVE_TESTS=true bun run test:live
 ```
 
+Critical public dashboard and authentication-boundary checks run in a real browser:
+
+```bash
+PLAYWRIGHT_BASE_URL=https://signal-fracture.vercel.app bun run test:e2e
+```
+
 ## Repository map
 
 ```text
@@ -172,8 +178,7 @@ docs             Decisions, evidence, operations, and submission material
 - One active worker replica
 - Text is the only qualification-critical interaction path
 - Rich interactions and media are not yet live-verified
-- Telegram and Discord message-path evidence is still pending
-- The public dashboard and live deployment are not yet submission-ready
+- A live three-participant canonical rehearsal is still required before submission readiness
 - Hosted Caspian gateway behavior remains an external dependency
 - This prototype is not for real emergency or operational use
 

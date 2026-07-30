@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
+    "qualify:proactive": "bun src/proactiveQualification.ts",
     "start": "bun src/index.ts",
     "build": "tsc -p tsconfig.json --noEmit"
   },

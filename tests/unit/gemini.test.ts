@@ -1,5 +1,6 @@
 import {
   GeminiDecisionClassifier,
+  GeminiReportNarrator,
   type GenerateStructured,
 } from "@signal-fracture/ai";
 import { describe, expect, it, vi } from "vitest";
@@ -131,5 +132,52 @@ describe("Gemini decision boundary", () => {
         allowedDecisions: ["WAIT"],
       }),
     ).resolves.toMatchObject({ status: "clarification", reason: "unsafe" });
+  });
+});
+
+describe("Gemini report boundary", () => {
+  it("narrates only the supplied deterministic evidence", async () => {
+    const generate = vi.fn<GenerateStructured>().mockResolvedValue(
+      JSON.stringify({
+        narrative:
+          "The deterministic record shows one contradiction that was resolved.",
+      }),
+    );
+    const narrator = new GeminiReportNarrator(config, generate);
+    await expect(
+      narrator.narrate({
+        deterministicSummary: "One deterministic contradiction was recorded.",
+        metrics: { contradictionCount: 1, retryCount: 0 },
+      }),
+    ).resolves.toMatchObject({ status: "generated", model: "primary" });
+    expect(generate.mock.calls[0]?.[0].prompt).toContain(
+      '"contradictionCount":1',
+    );
+    expect(generate.mock.calls[0]?.[0].prompt).toContain(
+      "Use only the supplied deterministic summary and metrics.",
+    );
+  });
+
+  it("uses the fallback model for malformed primary narration", async () => {
+    const generate = vi
+      .fn<GenerateStructured>()
+      .mockResolvedValueOnce("not json")
+      .mockResolvedValueOnce(
+        JSON.stringify({ narrative: "Grounded summary." }),
+      );
+    const narrator = new GeminiReportNarrator(config, generate);
+    await expect(
+      narrator.narrate({ deterministicSummary: "Done.", metrics: {} }),
+    ).resolves.toMatchObject({ status: "generated", model: "fallback" });
+  });
+
+  it("leaves the deterministic report intact during total outage", async () => {
+    const narrator = new GeminiReportNarrator(
+      config,
+      vi.fn<GenerateStructured>().mockRejectedValue(new Error("offline")),
+    );
+    await expect(
+      narrator.narrate({ deterministicSummary: "Done.", metrics: {} }),
+    ).resolves.toEqual({ status: "unavailable" });
   });
 });

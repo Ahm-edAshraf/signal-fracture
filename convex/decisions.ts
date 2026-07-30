@@ -260,15 +260,15 @@ async function maybeComplete(
   ctx: MutationCtx,
   session: Doc<"sessions">,
   now: number,
-): Promise<void> {
+): Promise<boolean> {
   const completed = await Promise.all(
     ["PASSAGE_BLOCKED", "REROUTE_BAY_5", "ESCALATE_NOW"].map(
       async (decision) => await hasAppliedDecision(ctx, session._id, decision),
     ),
   );
-  if (!completed.every(Boolean)) return;
+  if (!completed.every(Boolean)) return false;
   const current = await ctx.db.get(session._id);
-  if (current === null || current.status === "completed") return;
+  if (current === null || current.status === "completed") return false;
   await ctx.db.patch(current._id, {
     status: "completed",
     version: current.version + 1,
@@ -288,6 +288,7 @@ async function maybeComplete(
     });
   }
   await writeDeterministicReport(ctx, session._id, now);
+  return true;
 }
 
 export const activePrompt = query({
@@ -516,7 +517,7 @@ export const accept = mutation({
       now: args.now,
     });
     await maybeQueueReconciliation(ctx, session, args.now);
-    await maybeComplete(ctx, session, args.now);
+    const sessionCompleted = await maybeComplete(ctx, session, args.now);
     await ctx.db.insert("auditEvents", {
       sessionId: session._id,
       roleId: role._id,
@@ -536,6 +537,8 @@ export const accept = mutation({
       outcome: "applied" as const,
       decisionId,
       contradictionDetected: contradictionId !== null,
+      sessionId: session._id,
+      sessionCompleted,
     };
   },
 });

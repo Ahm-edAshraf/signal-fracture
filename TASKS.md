@@ -16,11 +16,11 @@ Update truthfully. Do not check an item without evidence.
 - [x] exactly one `client.onMessage` registration
 - [x] real Email inbound
 - [x] real Email reply
-- [ ] real Telegram inbound
-- [ ] real Telegram reply
+- [x] real Telegram inbound
+- [x] real Telegram reply
 - [x] stored conversation IDs
 - [x] proactive Email send
-- [ ] proactive Telegram send
+- [x] proactive Telegram send
 - [x] real event IDs recorded
 - [x] inbound dedup
 - [x] persistent worker selected
@@ -59,7 +59,7 @@ Update truthfully. Do not check an item without evidence.
 
 - [x] exact primary API model ID verified
 - [x] exact fallback ID verified
-- [ ] IDs in environment
+- [x] IDs in environment
 - [x] strict Zod output
 - [x] active choices constrained
 - [x] confidence threshold
@@ -68,7 +68,7 @@ Update truthfully. Do not check an item without evidence.
 - [x] total outage fallback
 - [x] commands bypass LLM
 - [x] transitions bypass LLM
-- [ ] report narrative uses deterministic metrics
+- [x] report narrative uses deterministic metrics
 
 ## P0 delivery
 
@@ -84,24 +84,24 @@ Update truthfully. Do not check an item without evidence.
 
 ## P0 dashboard
 
-- [ ] role/channel topology
-- [ ] global world facts
-- [ ] role knowledge panels
-- [ ] inject timeline
-- [ ] decision timeline
-- [ ] contradiction graph
-- [ ] red Bay 3 conflict
-- [ ] delivery status
-- [ ] retry/dedupe metrics
+- [x] role/channel topology
+- [x] global world facts
+- [x] role knowledge panels
+- [x] inject timeline
+- [x] decision timeline
+- [x] contradiction graph
+- [x] red Bay 3 conflict
+- [x] delivery status
+- [x] retry/dedupe metrics
 - [x] who-knew-what-when report
 - [x] guarded demo reset
 
 ## P1 third channel and enhancements
 
 - [x] Discord connected
-- [ ] real Discord inbound
-- [ ] real Discord reply
-- [ ] proactive Discord send
+- [x] real Discord inbound
+- [x] real Discord reply
+- [x] proactive Discord send
 - [ ] three-channel canonical demo
 - [x] text fallback everywhere
 - [ ] capability-aware rich blocks
@@ -151,7 +151,7 @@ Update truthfully. Do not check an item without evidence.
 - [ ] video backup
 - [ ] Devpost copy
 - [x] repository public
-- [ ] links tested incognito
+- [x] links tested incognito
 - [ ] submitted before internal deadline
 
 ## P2 — only after every item above

@@ -51,6 +51,9 @@ describe("Convex atomic state", () => {
     await expect(t.mutation(api.inbound.claim, input)).resolves.toMatchObject({
       duplicate: true,
     });
+    expect(await t.query(api.inbound.stats)).toMatchObject({
+      duplicateCount: 1,
+    });
     expect(await t.mutation(api.checkpoint.save, { lastSeq: 20 })).toBe(20);
     expect(await t.mutation(api.checkpoint.save, { lastSeq: 10 })).toBe(20);
     expect(await t.query(api.checkpoint.load)).toBe(20);
@@ -484,7 +487,7 @@ describe("Convex atomic state", () => {
       rawTextRedacted: "REROUTE BAY 5",
       now: 5_000,
     });
-    await t.mutation(api.decisions.accept, {
+    const completion = await t.mutation(api.decisions.accept, {
       inboundEventId: "director-escalate",
       conversationId: "director-conversation",
       injectId: directorReconcile.injectId,
@@ -493,6 +496,11 @@ describe("Convex atomic state", () => {
       parseMethod: "command",
       rawTextRedacted: "ESCALATE NOW",
       now: 6_000,
+    });
+    expect(completion).toMatchObject({
+      outcome: "applied",
+      sessionId,
+      sessionCompleted: true,
     });
 
     const final = await t.run(async (ctx) => {
@@ -534,6 +542,52 @@ describe("Convex atomic state", () => {
         contradictionResolutionMs: 4_000,
       },
     });
+    const narrationInput = await t.query(api.reports.getNarrationInput, {
+      operatorSecret,
+      sessionId,
+    });
+    if (narrationInput === null) throw new Error("Expected narration input");
+    await expect(
+      t.mutation(api.reports.attachNarrative, {
+        operatorSecret: "invalid-operator-secret",
+        reportId: narrationInput.reportId,
+        narrative: "Should not be stored.",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      t.mutation(api.reports.attachNarrative, {
+        operatorSecret,
+        reportId: narrationInput.reportId,
+        narrative:
+          "The deterministic record shows one resolved Bay 3 contradiction.",
+      }),
+    ).resolves.toBe(true);
+    expect(
+      await t.query(api.reports.getPublic, { publicCode: "ASTERIA" }),
+    ).toMatchObject({
+      narrative:
+        "The deterministic record shows one resolved Bay 3 contradiction.",
+    });
+    const dashboard = await t.query(api.dashboard.publicState, {
+      publicCode: "ASTERIA",
+    });
+    expect(dashboard).toMatchObject({
+      session: { status: "completed" },
+      roles: expect.arrayContaining([
+        expect.objectContaining({ roleKey: "field", channel: "telegram" }),
+        expect.objectContaining({ roleKey: "control", channel: "discord" }),
+        expect.objectContaining({ roleKey: "director", channel: "email" }),
+      ]),
+      contradictions: [
+        expect.objectContaining({
+          contradictionKey: "C-BAY3",
+          status: "resolved",
+        }),
+      ],
+    });
+    const publicJson = JSON.stringify(dashboard);
+    expect(publicJson).not.toContain("field-conversation");
+    expect(publicJson).not.toContain("field-fingerprint");
 
     await expect(
       t.mutation(api.decisions.accept, {
@@ -547,6 +601,29 @@ describe("Convex atomic state", () => {
         now: 7_000,
       }),
     ).resolves.toMatchObject({ outcome: "duplicate" });
+  });
+
+  it("publishes only safe channel health fields", async () => {
+    const t = convexTest(schema, modules);
+    await expect(
+      t.mutation(api.health.record, {
+        operatorSecret: "invalid-operator-secret",
+        channels: [{ channel: "telegram", status: "active" }],
+        checkedAt: 100,
+      }),
+    ).rejects.toThrow();
+    await t.mutation(api.health.record, {
+      operatorSecret,
+      channels: [
+        { channel: "telegram", status: "active" },
+        { channel: "discord", status: "active" },
+      ],
+      checkedAt: 100,
+    });
+    await expect(t.query(api.health.publicStatus)).resolves.toEqual([
+      { channel: "discord", status: "active", checkedAt: 100 },
+      { channel: "telegram", status: "active", checkedAt: 100 },
+    ]);
   });
 
   it("resets only the guarded demo tenant", async () => {

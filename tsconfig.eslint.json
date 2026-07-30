@@ -13,6 +13,7 @@
     "convex/**/*.ts",
     "packages/**/*.ts",
     "tests/**/*.ts",
+    "playwright.config.ts",
     "eslint.config.mjs"
   ]
 }

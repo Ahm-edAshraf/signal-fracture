@@ -5,6 +5,7 @@ import {
   conversationHash,
   type InboundEnvelope,
 } from "@signal-fracture/caspian";
+import type { GeminiReportNarrator } from "@signal-fracture/ai";
 
 export class AgentState {
   readonly #client: ConvexHttpClient;
@@ -98,6 +99,16 @@ export class AgentState {
     });
   }
 
+  async recordChannelHealth(
+    channels: { channel: string; status: string }[],
+  ): Promise<void> {
+    await this.#client.mutation(api.health.record, {
+      operatorSecret: this.#operatorSecret,
+      channels,
+      checkedAt: Date.now(),
+    });
+  }
+
   async joinRole(input: {
     roleKey: "field" | "control" | "director";
     joinCodeHash: string;
@@ -171,6 +182,24 @@ export class AgentState {
     return await this.#client.mutation(api.decisions.requestClarification, {
       ...input,
       now: Date.now(),
+    });
+  }
+
+  async generateReportNarrative(
+    sessionId: Id<"sessions">,
+    narrator: GeminiReportNarrator,
+  ): Promise<boolean> {
+    const input = await this.#client.query(api.reports.getNarrationInput, {
+      operatorSecret: this.#operatorSecret,
+      sessionId,
+    });
+    if (input === null) return false;
+    const outcome = await narrator.narrate(input);
+    if (outcome.status !== "generated") return false;
+    return await this.#client.mutation(api.reports.attachNarrative, {
+      operatorSecret: this.#operatorSecret,
+      reportId: input.reportId,
+      narrative: outcome.narrative,
     });
   }
 }

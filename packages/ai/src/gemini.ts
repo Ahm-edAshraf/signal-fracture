@@ -34,7 +34,7 @@ export type ClassificationOutcome =
     }
   | { status: "unavailable"; explicitOptions: readonly string[] };
 
-function createGenerator(apiKey: string): GenerateStructured {
+export function createGenerator(apiKey: string): GenerateStructured {
   const ai = new GoogleGenAI({ apiKey });
   return async ({ model, prompt, responseJsonSchema }) => {
     const response = await ai.models.generateContent({
@@ -51,7 +51,7 @@ function createGenerator(apiKey: string): GenerateStructured {
   };
 }
 
-async function withTimeout<T>(
+export async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
 ): Promise<T> {

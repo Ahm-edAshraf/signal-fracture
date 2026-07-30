@@ -207,6 +207,7 @@ export default defineSchema({
       v.literal("processed"),
       v.literal("failed"),
     ),
+    duplicateCount: v.optional(v.number()),
     outcomeRef: v.optional(v.string()),
     receivedAt: v.number(),
     processedAt: v.optional(v.number()),
@@ -253,6 +254,12 @@ export default defineSchema({
     lastSeq: v.number(),
     updatedAt: v.number(),
   }).index("by_key", ["key"]),
+
+  channelHealth: defineTable({
+    channel: v.string(),
+    status: v.string(),
+    checkedAt: v.number(),
+  }).index("by_channel", ["channel"]),
 
   auditEvents: defineTable({
     sessionId: v.optional(v.id("sessions")),

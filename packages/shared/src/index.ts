@@ -4,3 +4,5 @@ export const EXERCISE_BANNER =
 export function participantMessage(body: string): string {
   return `${EXERCISE_BANNER}\n\n${body}`;
 }
+
+export * from "./roleCodes";

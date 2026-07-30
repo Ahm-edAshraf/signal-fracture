@@ -8,8 +8,8 @@ This file is intentionally conservative. An item is checked only after public or
 - [x] Exactly one shared `onMessage` registration
 - [x] Real Email inbound and reply
 - [x] Proactive Email send to a persisted conversation after restart
-- [ ] Real Telegram inbound, reply, and proactive send
-- [ ] Real Discord inbound, reply, and proactive send
+- [x] Real Telegram inbound, reply, and proactive send
+- [x] Real Discord inbound, reply, and proactive send
 
 ## Product
 
@@ -37,8 +37,8 @@ This file is intentionally conservative. An item is checked only after public or
 - [ ] Fresh-clone setup verified
 - [x] Production Convex deployment
 - [x] Persistent worker deployed with one replica
-- [x] Qualification surface deployed; live dashboard upgrade pending Gate A
-- [ ] Repository public and checked incognito
+- [x] Live evidence dashboard and guarded operator console deployed
+- [x] Repository and public deployment checked without authentication
 - [ ] Screenshots captured and privacy-reviewed
 - [ ] Primary and backup videos recorded
 - [ ] Devpost copy finalized

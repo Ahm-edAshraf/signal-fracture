@@ -8,11 +8,15 @@ import type { AgentState } from "./state";
 import { stripEmailQuotedReply } from "./emailQuoteStripper";
 import { parseParticipantCommand } from "./commandRouter";
 import { hashRoleCode, verifyRoleCode } from "./roleCodes";
-import type { GeminiDecisionClassifier } from "@signal-fracture/ai";
+import type {
+  GeminiDecisionClassifier,
+  GeminiReportNarrator,
+} from "@signal-fracture/ai";
 import {
   parseDeterministicDecision,
   type DecisionKey,
 } from "@signal-fracture/core";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 const ALL_DECISIONS: readonly DecisionKey[] = [
   "SEAL_BAY_3",
@@ -58,6 +62,7 @@ export async function handleInboundMessage(
   message: Message,
   state: AgentState,
   classifier: GeminiDecisionClassifier,
+  narrator: GeminiReportNarrator,
 ): Promise<void> {
   const envelope = normalizeCaspianMessage(message);
   if (envelope.channel === "email") {
@@ -73,6 +78,7 @@ export async function handleInboundMessage(
   const command = parseParticipantCommand(envelope.text);
   let body: string;
   let outcome = "message.received";
+  let completedSessionId: Id<"sessions"> | undefined;
 
   if (command?.type === "help") {
     body = [
@@ -159,6 +165,9 @@ export async function handleInboundMessage(
             ? `Decision recorded: ${deterministic.decision.replaceAll("_", " ")}.`
             : "That decision prompt is already closed. Send STATUS for your current role state.";
         outcome = `decision.${result.outcome}`;
+        if (result.outcome === "applied" && result.sessionCompleted) {
+          completedSessionId = result.sessionId;
+        }
       } else if (anyKnownDecision !== null) {
         body = `That decision prompt is already closed. Your current valid choices are: ${allowed.join(", ")}.`;
         outcome = "decision.stale_choice";
@@ -185,6 +194,9 @@ export async function handleInboundMessage(
               ? `Decision recorded: ${decision.replaceAll("_", " ")}.`
               : "That decision prompt is already closed. Send STATUS for your current role state.";
           outcome = `decision.${result.outcome}`;
+          if (result.outcome === "applied" && result.sessionCompleted) {
+            completedSessionId = result.sessionId;
+          }
         } else {
           const clarification = await state.requestClarification({
             inboundEventId: envelope.messageId,
@@ -212,4 +224,9 @@ export async function handleInboundMessage(
   await message.reply(participantMessage(body));
   const outcomeRef = `${outcome}:${conversationHash(envelope.conversationId).slice(0, 16)}`;
   await state.completeInbound(envelope.messageId, outcomeRef);
+  if (completedSessionId !== undefined) {
+    await state
+      .generateReportNarrative(completedSessionId, narrator)
+      .catch(() => false);
+  }
 }
