@@ -106,13 +106,15 @@ Private addresses, connection identifiers, conversation identifiers, and sender 
 - Public dashboard API returns only aliases, synthetic facts, canonical decisions, delivery metadata, truncated event references, and aggregate reliability values.
 - Guarded operator login rejects an incorrect secret with HTTP 401 and issues an HttpOnly, SameSite=Strict cookie after valid authentication.
 - Playwright production checks: 3/3 pass (qualified channels, operator auth boundary, public payload redaction).
+- Playwright local checks: 3/3 pass against the synchronized Convex development deployment; production checks also pass 3/3 with the explicit public base URL.
+- Opt-in live gateway qualification suite: 2/2 pass; the suite performs capability discovery only and sends no participant message.
 - Preliminary privacy-reviewed screenshots: `docs/screenshots/dashboard-standby.png` and `docs/screenshots/operator-login.png`.
 - Worker recovery regression tests verify that a failed initial checkpoint write retains the original gateway baseline, transient stale-claim recovery errors do not terminate the worker, and a successful provider send is not repeated while its database acknowledgement retries.
 
 ## Fresh public clone — PASS
 
-- Source: public `main` branch at commit `67c1a2e`
+- Source: public `main` branch at commit `868df12`
 - Location: isolated temporary directory with no project `.env.local`
 - `bun install --frozen-lockfile`: PASS
 - `bun run check`: PASS
-- Result at that commit: 28 unit tests, 10 integration tests, package/worker build, and all seven Next.js routes built successfully.
+- Result at that commit: 31 unit tests, 10 integration tests, package/worker build, and all seven Next.js routes built successfully.

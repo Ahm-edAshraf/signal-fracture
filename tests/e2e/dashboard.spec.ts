@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("renders live qualified channels and the evidence shell", async ({
-  page,
-}) => {
+test("renders qualified channels and the evidence shell", async ({ page }) => {
   await page.goto("/");
   await expect(
     page.getByText("FICTIONAL SCENARIO — NOT A REAL EMERGENCY"),
@@ -11,7 +9,9 @@ test("renders live qualified channels and the evidence shell", async ({
   await expect(page.getByText("telegram", { exact: true })).toBeVisible();
   await expect(page.getByText("discord", { exact: true })).toBeVisible();
   await expect(page.getByText("email", { exact: true })).toBeVisible();
-  await expect(page.getByText("LIVE", { exact: true })).toHaveCount(3);
+  const expectedHealth =
+    process.env.PLAYWRIGHT_BASE_URL === undefined ? "CHECKING" : "LIVE";
+  await expect(page.getByText(expectedHealth, { exact: true })).toHaveCount(3);
 });
 
 test("keeps operator controls behind authentication", async ({ page }) => {

@@ -18,7 +18,7 @@ export default defineConfig({
     ? {
         webServer: {
           command:
-            "bun --env-file=.env.local run --cwd apps/web dev -- -p 3100",
+            "bun --env-file=../../.env.local run --cwd apps/web dev -- -p 3100",
           url: "http://127.0.0.1:3100",
           reuseExistingServer: true,
           timeout: 120_000,
