@@ -99,13 +99,14 @@ Private addresses, connection identifiers, conversation identifiers, and sender 
 - Production Convex schema and functions deployed successfully.
 - Persistent Railway worker: `https://agent-production-32ad.up.railway.app`
 - Railway deployment status: SUCCESS; one running service replica.
-- Current worker deployment `df21bc93-e7a6-406d-a9d3-5de8350c36c5`: SUCCESS.
-- Current web deployment `dpl_nitGDsHxEujnivMRwtky325q2iA6`: READY and aliased to the public URL.
+- Current worker deployment `0a8a3866-2720-46d7-aae7-a71bac0e84da`: SUCCESS.
+- Current web deployment `dpl_DMFGapQWnkGYE63jL8BeWn1o7SXN`: READY and aliased to the public URL.
 - `/healthz`: `{"status":"ok"}`
 - `/readyz`: `{"status":"ready","channels":["email","telegram","discord"]}`
 - The local consumer was stopped before production startup so only one worker dispatches events.
 - Public dashboard API returns only aliases, synthetic facts, canonical decisions, delivery metadata, truncated event references, and aggregate reliability values.
 - Guarded operator login rejects an incorrect secret with HTTP 401 and issues an HttpOnly, SameSite=Strict cookie after valid authentication.
+- The operator secret was rotated through the authenticated Vercel, Railway, and Convex CLIs with terminal echo disabled; the value was not printed, logged, or committed.
 - Playwright production checks: 4/4 pass (qualified channels, operator auth boundary, report-export auth boundary, public payload redaction).
 - Opt-in live gateway qualification suite: 2/2 pass; the suite performs capability discovery only and sends no participant message.
 - Preliminary privacy-reviewed screenshots: `docs/screenshots/dashboard-standby.png` and `docs/screenshots/operator-login.png`.
