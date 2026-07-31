@@ -1091,6 +1091,21 @@ button:focus-visible {
   border-color: var(--teal-dark);
 }
 
+.secondary-action {
+  background: transparent;
+  border-color: var(--teal-dark);
+  color: var(--teal-dark);
+}
+
+.operator-session-status {
+  color: var(--ink-soft);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  margin: 0.8rem 0 0;
+  text-transform: uppercase;
+}
+
 .danger-action {
   background: transparent;
   border-color: var(--fault);

@@ -53,6 +53,8 @@ Gemini never owns world state or scenario control. Exact decisions bypass the mo
 - Atomic inbound deduplication before business logic
 - Expected inject versions reject stale or concurrent responses
 - Atomic outbox claims with bounded retry and branch pause on permanent failure
+- Deterministic inject deadlines and a reset-required safety pause on later misses
+- Guarded operator pause/resume/abort controls with durable outbox holds and frozen response clocks
 - Monotonic durable Caspian checkpoint
 - Signed, expiring, single-role join commands
 - Email quote stripping before decision parsing
@@ -60,6 +62,7 @@ Gemini never owns world state or scenario control. Exact decisions bypass the mo
 - Public dashboard projection with no address, conversation ID, connection ID, sender payload, raw participant message, or join-code hash
 - Server-only Convex operator authority exchanged for a short-lived HttpOnly/SameSite cookie
 - Mandatory fictional-exercise banner on participant-facing messages
+- Conservative role knowledge recorded only after a participant reply confirms receipt
 
 ## Verified results so far
 
@@ -67,9 +70,10 @@ Gemini never owns world state or scenario control. Exact decisions bypass the mo
 - Real inbound, same-thread reply, and proactive persisted-conversation send verified on all 3 channels
 - Exactly 1 shared `client.onMessage(...)` registration
 - Durable production worker healthy with all 3 channels ready
-- 31 unit tests, 10 Convex integration tests, and 3 production-browser checks passing
+- 39 unit tests, 12 Convex integration tests, and 4 production-browser checks passing
 - Fresh public clone passes frozen installation and the complete root quality gate without project secrets
 - Canonical deterministic and Convex integration scenarios create and resolve exactly 1 Bay 3 contradiction
+- Completed reports have an authenticated, privacy-safe JSON export
 
 The live three-participant rehearsal metrics will be added here after the canonical run. No unverified latency, completion-time, or rehearsal-rate claim will be published.
 

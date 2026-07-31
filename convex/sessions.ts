@@ -1,6 +1,7 @@
+import type { GenericMutationCtx } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { requireOperatorSecret } from "./auth";
 import {
   roleDefinitions,
@@ -13,6 +14,83 @@ const roleKeyValidator = v.union(
   v.literal("control"),
   v.literal("director"),
 );
+
+type MutationCtx = GenericMutationCtx<DataModel>;
+
+async function abortSession(
+  ctx: MutationCtx,
+  session: Doc<"sessions">,
+  input: {
+    now: number;
+    actorType: "participant" | "operator";
+    roleId?: Id<"roles">;
+  },
+): Promise<{ aborted: boolean }> {
+  if (["completed", "aborted", "failed"].includes(session.status)) {
+    return { aborted: session.status === "aborted" };
+  }
+  await ctx.db.patch(session._id, {
+    status: "aborted",
+    pausedFrom: undefined,
+    pausedAt: undefined,
+    pauseReason: undefined,
+    version: session.version + 1,
+    completedAt: input.now,
+    updatedAt: input.now,
+  });
+  const [injects, deliveries, roles] = await Promise.all([
+    ctx.db
+      .query("injects")
+      .withIndex("by_session_inject_key", (q) => q.eq("sessionId", session._id))
+      .collect(),
+    ctx.db.query("deliveries").collect(),
+    ctx.db
+      .query("roles")
+      .withIndex("by_session_role", (q) => q.eq("sessionId", session._id))
+      .collect(),
+  ]);
+  for (const inject of injects) {
+    if (
+      ["planned", "queued", "sent", "delivered", "open", "retrying"].includes(
+        inject.status,
+      )
+    ) {
+      await ctx.db.patch(inject._id, {
+        status: "cancelled",
+        version: inject.version + 1,
+        updatedAt: input.now,
+      });
+    }
+  }
+  for (const delivery of deliveries) {
+    if (
+      delivery.sessionId === session._id &&
+      ["pending", "claimed"].includes(delivery.status)
+    ) {
+      await ctx.db.patch(delivery._id, {
+        status: "cancelled",
+        updatedAt: input.now,
+      });
+    }
+  }
+  for (const role of roles) {
+    await ctx.db.patch(role._id, {
+      currentInjectId: undefined,
+      status: "completed",
+      version: role.version + 1,
+      updatedAt: input.now,
+    });
+  }
+  await ctx.db.insert("auditEvents", {
+    sessionId: session._id,
+    ...(input.roleId === undefined ? {} : { roleId: input.roleId }),
+    type: "session.aborted",
+    actorType: input.actorType,
+    safeMetadata: {},
+    createdAt: input.now,
+  });
+  return { aborted: true };
+}
 
 export const createDemo = mutation({
   args: {
@@ -149,11 +227,102 @@ export const start = mutation({
     }
     await ctx.db.patch(args.sessionId, {
       status: "running",
+      pausedFrom: undefined,
+      pausedAt: undefined,
+      pauseReason: undefined,
       version: session.version + 1,
       startedAt: args.now,
       updatedAt: args.now,
     });
     return { status: "running" as const };
+  },
+});
+
+export const control = mutation({
+  args: {
+    operatorSecret: v.string(),
+    sessionId: v.id("sessions"),
+    action: v.union(
+      v.literal("pause"),
+      v.literal("resume"),
+      v.literal("abort"),
+    ),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    requireOperatorSecret(args.operatorSecret);
+    const session = await ctx.db.get(args.sessionId);
+    if (session === null) throw new ConvexError("Session not found");
+
+    if (args.action === "abort") {
+      return await abortSession(ctx, session, {
+        now: args.now,
+        actorType: "operator",
+      });
+    }
+
+    if (args.action === "pause") {
+      if (session.status !== "running" && session.status !== "resolving") {
+        throw new ConvexError("Only an active session can be paused");
+      }
+      const pausedFrom = session.status;
+      await ctx.db.patch(session._id, {
+        status: "paused",
+        pausedFrom,
+        pausedAt: args.now,
+        pauseReason: "operator",
+        version: session.version + 1,
+        updatedAt: args.now,
+      });
+      await ctx.db.insert("auditEvents", {
+        sessionId: session._id,
+        type: "session.paused",
+        actorType: "operator",
+        safeMetadata: { pausedFrom },
+        createdAt: args.now,
+      });
+      return { status: "paused" as const };
+    }
+
+    if (session.status !== "paused" || session.pauseReason !== "operator") {
+      throw new ConvexError(
+        "Only an operator-paused session can be resumed; safety pauses require reset",
+      );
+    }
+    const resumedStatus = session.pausedFrom ?? "running";
+    const pauseDurationMs = Math.max(
+      0,
+      args.now - (session.pausedAt ?? args.now),
+    );
+    const injects = await ctx.db
+      .query("injects")
+      .withIndex("by_session_inject_key", (q) => q.eq("sessionId", session._id))
+      .collect();
+    for (const inject of injects) {
+      if (inject.status === "open" && inject.deadlineAt !== undefined) {
+        await ctx.db.patch(inject._id, {
+          deadlineAt: inject.deadlineAt + pauseDurationMs,
+          version: inject.version + 1,
+          updatedAt: args.now,
+        });
+      }
+    }
+    await ctx.db.patch(session._id, {
+      status: resumedStatus,
+      pausedFrom: undefined,
+      pausedAt: undefined,
+      pauseReason: undefined,
+      version: session.version + 1,
+      updatedAt: args.now,
+    });
+    await ctx.db.insert("auditEvents", {
+      sessionId: session._id,
+      type: "session.resumed",
+      actorType: "operator",
+      safeMetadata: { resumedStatus, pauseDurationMs },
+      createdAt: args.now,
+    });
+    return { status: resumedStatus };
   },
 });
 
@@ -201,6 +370,7 @@ export const operatorCurrent = query({
       sessionId: session._id,
       publicCode: session.publicCode,
       status: session.status,
+      pauseReason: session.pauseReason ?? null,
       roles: roles.map(({ roleKey, status }) => ({ roleKey, status })),
     };
   },
@@ -218,68 +388,10 @@ export const abortByConversation = mutation({
     if (endpoint === null || !endpoint.active) return { aborted: false };
     const session = await ctx.db.get(endpoint.sessionId);
     if (session === null) return { aborted: false };
-    if (["completed", "aborted", "failed"].includes(session.status)) {
-      return { aborted: session.status === "aborted" };
-    }
-    await ctx.db.patch(session._id, {
-      status: "aborted",
-      version: session.version + 1,
-      completedAt: args.now,
-      updatedAt: args.now,
-    });
-    const [injects, deliveries, roles] = await Promise.all([
-      ctx.db
-        .query("injects")
-        .withIndex("by_session_inject_key", (q) =>
-          q.eq("sessionId", session._id),
-        )
-        .collect(),
-      ctx.db.query("deliveries").collect(),
-      ctx.db
-        .query("roles")
-        .withIndex("by_session_role", (q) => q.eq("sessionId", session._id))
-        .collect(),
-    ]);
-    for (const inject of injects) {
-      if (
-        ["planned", "queued", "sent", "delivered", "open", "retrying"].includes(
-          inject.status,
-        )
-      ) {
-        await ctx.db.patch(inject._id, {
-          status: "cancelled",
-          version: inject.version + 1,
-          updatedAt: args.now,
-        });
-      }
-    }
-    for (const delivery of deliveries) {
-      if (
-        delivery.sessionId === session._id &&
-        ["pending", "claimed"].includes(delivery.status)
-      ) {
-        await ctx.db.patch(delivery._id, {
-          status: "cancelled",
-          updatedAt: args.now,
-        });
-      }
-    }
-    for (const role of roles) {
-      await ctx.db.patch(role._id, {
-        currentInjectId: undefined,
-        status: "completed",
-        version: role.version + 1,
-        updatedAt: args.now,
-      });
-    }
-    await ctx.db.insert("auditEvents", {
-      sessionId: session._id,
-      roleId: endpoint.roleId,
-      type: "session.aborted",
+    return await abortSession(ctx, session, {
+      now: args.now,
       actorType: "participant",
-      safeMetadata: {},
-      createdAt: args.now,
+      roleId: endpoint.roleId,
     });
-    return { aborted: true };
   },
 });

@@ -25,6 +25,13 @@ test("keeps operator controls behind authentication", async ({ page }) => {
   );
 });
 
+test("keeps report exports behind operator authentication", async ({
+  request,
+}) => {
+  const response = await request.get("/api/operator/report");
+  expect(response.status()).toBe(401);
+});
+
 test("public dashboard payload excludes private addressing fields", async ({
   request,
 }) => {

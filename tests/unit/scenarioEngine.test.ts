@@ -1,6 +1,7 @@
 import {
   abortScenario,
   applyDecision,
+  calculateCoordinationScore,
   calculateMetrics,
   createAsteriaState,
   evaluateRule,
@@ -109,12 +110,25 @@ describe("Asteria deterministic scenario", () => {
     expect(completed.contradictions[0]?.status).toBe("resolved");
 
     expect(calculateMetrics(completed)).toMatchObject({
+      coordinationScore: 90,
       sessionDurationMs: 6_000,
       fieldToControlConflictMs: 1_000,
       contradictionDetectionMs: 0,
       contradictionResolutionMs: 4_000,
       duplicateInboundCount: 0,
     });
+  });
+
+  it("scores only deterministic outcomes and reliability penalties", () => {
+    expect(
+      calculateCoordinationScore({
+        contradictionCount: 2,
+        resolvedContradictionCount: 1,
+        retryCount: 3,
+        failedDeliveryCount: 1,
+        contradictionResolutionMs: 90_000,
+      }),
+    ).toBe(23);
   });
 
   it("rejects stale and wrong-role decisions without changing facts", () => {

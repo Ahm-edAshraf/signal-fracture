@@ -26,6 +26,9 @@ All required credentials and CLI authentications were available during the 31 Ju
    - Control: `REROUTE BAY 5`
    - Director: `ESCALATE NOW`
 7. Keep <https://signal-fracture.vercel.app> visible and confirm the session completes with one resolved `C-BAY3` contradiction and an after-action report.
+8. In the operator console, select **Export report** and privacy-review the downloaded JSON before using it as submission evidence.
+
+The operator may use **Pause exercise** during a demonstration interruption and **Resume exercise** to restore the prior running or reconciliation phase without consuming participant response time. **Abort exercise** cancels the fictional run. A session paused because a required delivery exhausted its retries or a required response deadline elapsed cannot be resumed; use **Reset demo tenant** and stage a new run after correcting the problem.
 
 The operator secret and temporary role commands must not be pasted into public chat, screenshots, logs, or repository files.
 

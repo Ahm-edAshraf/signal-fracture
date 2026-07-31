@@ -59,3 +59,27 @@ The public dashboard reads a dedicated Convex projection containing only public 
 Status: accepted
 
 After Caspian accepts an outbound send, the worker retries only the Convex acknowledgement and does not call `sendMessage` again for a transient persistence error. This prevents avoidable duplicates while the process remains alive. A hard crash after provider acceptance but before the acknowledgement is durably stored remains an unavoidable ambiguity because the installed SDK does not expose an outbound idempotency key. Recovery may resend that logical delivery; the dashboard and audit log retain the stable logical effect key and attempt history, and the project does not claim exactly-once provider delivery.
+
+## ADR-011 — Pause reason controls resumability
+
+Status: accepted
+
+An operator pause preserves whether the session was running or reconciling, freezes open response deadlines, holds pending outbox claims, and rejects participant decisions without applying them. Resume restores that preserved phase and shifts deadlines by the measured pause duration. A pause caused by a permanently failed required delivery or a missed safety deadline is intentionally not resumable from the console; the operator must correct the problem and reset the demo tenant. This prevents a control-plane action from bypassing a required invariant.
+
+## ADR-012 — Deadlines advance only the intended demo timeout
+
+Status: accepted
+
+Response windows begin only after the provider accepts the inject send. F1 has a 120-second window and may advance to C1 on expiry because the scenario specification explicitly allows that demo timeout. C1, RF1, and RC1 use 120 seconds; D1 and RD1 use 180 seconds. Any non-F1 miss expires the inject, records deterministic audit evidence, and pauses the session for reset. This avoids inventing a participant decision while keeping the documented demonstration graph executable.
+
+## ADR-013 — Coordination scoring is deterministic and inspectable
+
+Status: accepted
+
+The score starts at 100 and subtracts 10 per contradiction, 25 per unresolved contradiction, 2 per retry up to 10, 20 per failed delivery, and 2 per completed 30 seconds of contradiction-resolution time up to 20. The result is clamped to 0–100. No model output affects the score.
+
+## ADR-014 — Participant replies confirm role knowledge
+
+Status: accepted
+
+Caspian provider acceptance is stored as `sent`; it is not presented as a read receipt. Runtime role-knowledge records for an inject are therefore created when that participant replies to the active inject, proving they received its contents no later than that timestamp. Repeated clarification or acknowledgement retries do not duplicate knowledge. This keeps the who-knew-what-when report conservative.

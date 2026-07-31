@@ -95,6 +95,7 @@ export const publicState = query({
         scenarioId: session.scenarioId,
         publicCode: session.publicCode,
         status: session.status,
+        pauseReason: session.pauseReason ?? null,
         version: session.version,
         startedAt: session.startedAt ?? null,
         completedAt: session.completedAt ?? null,
@@ -135,6 +136,7 @@ export const publicState = query({
           faultType: inject.faultType ?? null,
           allowedDecisions: inject.allowedDecisions,
           opensAt: inject.opensAt ?? null,
+          deadlineAt: inject.deadlineAt ?? null,
           closesAt: inject.closesAt ?? null,
           updatedAt: inject.updatedAt,
         }))

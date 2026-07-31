@@ -3,6 +3,10 @@ import { ConvexError, v } from "convex/values";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { writeDeterministicReport } from "./reportData";
+import {
+  injectKnowledgeDefinitions,
+  queueScenarioInject,
+} from "./scenarioData";
 
 const decisionValidator = v.union(
   v.literal("SEAL_BAY_3"),
@@ -93,66 +97,56 @@ async function teachRole(
   });
 }
 
-async function queueInject(
+async function recordConfirmedInjectKnowledge(
   ctx: MutationCtx,
-  sessionId: Id<"sessions">,
-  injectKey: string,
-  now: number,
-): Promise<boolean> {
-  const inject = await ctx.db
-    .query("injects")
-    .withIndex("by_session_inject_key", (q) =>
-      q.eq("sessionId", sessionId).eq("injectKey", injectKey),
-    )
-    .unique();
-  if (inject === null || inject.status !== "planned") return false;
-  const [role, endpoint] = await Promise.all([
-    ctx.db.get(inject.roleId),
-    ctx.db
-      .query("endpoints")
-      .withIndex("by_role_active", (q) =>
-        q.eq("roleId", inject.roleId).eq("active", true),
+  input: {
+    sessionId: Id<"sessions">;
+    roleId: Id<"roles">;
+    inject: Doc<"injects">;
+    now: number;
+  },
+): Promise<void> {
+  if (!(input.inject.injectKey in injectKnowledgeDefinitions)) return;
+  const definitions =
+    injectKnowledgeDefinitions[
+      input.inject.injectKey as keyof typeof injectKnowledgeDefinitions
+    ];
+  for (const definition of definitions) {
+    const existing = await ctx.db
+      .query("roleKnowledge")
+      .withIndex("by_role_fact_learned", (q) =>
+        q.eq("roleId", input.roleId).eq("factKey", definition.factKey),
       )
-      .unique(),
-  ]);
-  if (role === null || endpoint === null) {
-    throw new ConvexError("Required role endpoint is unavailable");
+      .collect();
+    if (
+      existing.some(({ sourceInjectId }) => sourceInjectId === input.inject._id)
+    ) {
+      continue;
+    }
+    const fact = await ctx.db
+      .query("worldFacts")
+      .withIndex("by_session_fact_version", (q) => {
+        const byFact = q
+          .eq("sessionId", input.sessionId)
+          .eq("factKey", definition.factKey);
+        return "version" in definition
+          ? byFact.eq("version", definition.version)
+          : byFact;
+      })
+      .order("desc")
+      .first();
+    if (fact === null) continue;
+    await ctx.db.insert("roleKnowledge", {
+      sessionId: input.sessionId,
+      roleId: input.roleId,
+      factKey: fact.factKey,
+      observedValue: fact.value,
+      worldVersionObserved: fact.version,
+      sourceInjectId: input.inject._id,
+      learnedAt: input.now,
+      stale: definition.stale,
+    });
   }
-  const idempotencyKey = `inject:${inject._id}:role:${role._id}`;
-  const existing = await ctx.db
-    .query("deliveries")
-    .withIndex("by_idempotency_key", (q) =>
-      q.eq("idempotencyKey", idempotencyKey),
-    )
-    .unique();
-  if (existing !== null) return false;
-  await ctx.db.patch(inject._id, {
-    status: "queued",
-    version: inject.version + 1,
-    updatedAt: now,
-  });
-  await ctx.db.patch(role._id, {
-    currentInjectId: inject._id,
-    status: "active",
-    version: role.version + 1,
-    updatedAt: now,
-  });
-  await ctx.db.insert("deliveries", {
-    idempotencyKey,
-    sessionId,
-    roleId: role._id,
-    injectId: inject._id,
-    semanticType: "scenario.inject",
-    conversationId: endpoint.conversationId,
-    channel: endpoint.channel,
-    payload: { text: inject.exerciseText },
-    status: "pending",
-    attempts: 0,
-    nextAttemptAt: now,
-    createdAt: now,
-    updatedAt: now,
-  });
-  return true;
 }
 
 async function hasAppliedDecision(
@@ -238,7 +232,8 @@ async function maybeQueueReconciliation(
   if (!directorAnswered) return;
   const opened = await Promise.all(
     ["RF1", "RC1", "RD1"].map(
-      async (injectKey) => await queueInject(ctx, session._id, injectKey, now),
+      async (injectKey) =>
+        await queueScenarioInject(ctx, session._id, injectKey, now),
     ),
   );
   if (opened.some(Boolean)) {
@@ -301,7 +296,10 @@ export const activePrompt = query({
       )
       .first();
     if (endpoint === null || !endpoint.active) return null;
-    const role = await ctx.db.get(endpoint.roleId);
+    const [role, session] = await Promise.all([
+      ctx.db.get(endpoint.roleId),
+      ctx.db.get(endpoint.sessionId),
+    ]);
     if (role?.currentInjectId === undefined) return null;
     const inject = await ctx.db.get(role.currentInjectId);
     if (inject === null) return null;
@@ -314,6 +312,8 @@ export const activePrompt = query({
       exerciseText: inject.exerciseText,
       clarificationCount: inject.clarificationCount,
       roleKey: role.roleKey,
+      sessionStatus: session?.status ?? "failed",
+      pauseReason: session?.pauseReason ?? null,
     };
   },
 });
@@ -401,6 +401,13 @@ export const accept = mutation({
       return { outcome: "invalid" as const, decisionId };
     }
 
+    await recordConfirmedInjectKnowledge(ctx, {
+      sessionId: session._id,
+      roleId: role._id,
+      inject,
+      now: args.now,
+    });
+
     const decisionId = await ctx.db.insert("decisions", {
       sessionId: session._id,
       roleId: role._id,
@@ -443,7 +450,7 @@ export const accept = mutation({
           sourceInjectId: inject._id,
           now: args.now,
         });
-        await queueInject(ctx, session._id, "C1", args.now);
+        await queueScenarioInject(ctx, session._id, "C1", args.now);
         break;
       case "ROUTE_BAY_3":
         await writeWorldFact(ctx, {
@@ -559,9 +566,14 @@ export const requestClarification = mutation({
         q.eq("conversationId", args.conversationId),
       )
       .first();
-    const inject = await ctx.db.get(args.injectId);
+    const [inject, session] = await Promise.all([
+      ctx.db.get(args.injectId),
+      endpoint === null ? null : ctx.db.get(endpoint.sessionId),
+    ]);
     if (
       endpoint === null ||
+      session === null ||
+      !["running", "resolving"].includes(session.status) ||
       inject === null ||
       inject.roleId !== endpoint.roleId ||
       inject.status !== "open" ||
@@ -581,6 +593,12 @@ export const requestClarification = mutation({
         showExplicitOptions: inject.clarificationCount >= 1,
       };
     }
+    await recordConfirmedInjectKnowledge(ctx, {
+      sessionId: session._id,
+      roleId: endpoint.roleId,
+      inject,
+      now: args.now,
+    });
     await ctx.db.insert("decisions", {
       sessionId: endpoint.sessionId,
       roleId: endpoint.roleId,

@@ -92,6 +92,7 @@ Gemini cannot create facts, select transitions, assign roles, declare delivery s
 - Stable outbound idempotency keys
 - Atomic outbox claim with bounded retry
 - Required-branch pause after permanent delivery failure
+- Deterministic per-inject deadlines with an audited safety pause on a miss
 - Monotonic Caspian checkpoint in Convex
 - Replay-safe restart behavior
 - Signed, role-bound, expiring join codes
@@ -99,6 +100,11 @@ Gemini cannot create facts, select transitions, assign roles, declare delivery s
 - Email quote stripping before parsing
 - Public-safe structured logs
 - Guarded demo-tenant reset
+- Guarded operator start, pause, resume, and abort controls
+- Paused sessions hold outbox claims and participant decisions durably, while operator pauses freeze active deadlines
+- Role knowledge is recorded only when a participant reply confirms receipt of that inject
+- Deterministic 0–100 coordination score from contradictions, resolution time, retries, and delivery failures
+- Authenticated JSON export of the completed who-knew-what-when report
 
 ## Privacy and safety
 

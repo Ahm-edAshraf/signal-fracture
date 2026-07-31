@@ -1,15 +1,27 @@
 import { ConvexError, v } from "convex/values";
 import { mutation } from "./_generated/server";
+import { deadlineForInject } from "./scenarioData";
 
 export const claimNext = mutation({
   args: { now: v.number(), workerId: v.string() },
   handler: async (ctx, args) => {
-    const item = await ctx.db
+    const due = await ctx.db
       .query("deliveries")
       .withIndex("by_status_next_attempt", (q) =>
         q.eq("status", "pending").lte("nextAttemptAt", args.now),
       )
-      .first();
+      .take(50);
+    let item: (typeof due)[number] | null = null;
+    for (const candidate of due) {
+      const session = await ctx.db.get(candidate.sessionId);
+      if (
+        session !== null &&
+        ["running", "resolving"].includes(session.status)
+      ) {
+        item = candidate;
+        break;
+      }
+    }
     if (item === null) return null;
     await ctx.db.patch(item._id, {
       status: "claimed",
@@ -31,6 +43,8 @@ export const markSent = mutation({
   },
   handler: async (ctx, args) => {
     const delivery = await ctx.db.get(args.deliveryId);
+    if (delivery?.status === "cancelled") return false;
+    if (delivery?.status === "sent") return true;
     if (delivery === null || delivery.status !== "claimed") {
       throw new ConvexError("Delivery is not claimed");
     }
@@ -49,6 +63,7 @@ export const markSent = mutation({
         await ctx.db.patch(inject._id, {
           status: "open",
           opensAt: args.now,
+          deadlineAt: args.now + deadlineForInject(inject.injectKey),
           version: inject.version + 1,
           updatedAt: args.now,
         });
@@ -85,12 +100,26 @@ export const requeueStaleClaims = mutation({
         const session = await ctx.db.get(delivery.sessionId);
         if (
           session !== null &&
-          ["running", "resolving"].includes(session.status)
+          (session.status === "running" || session.status === "resolving")
         ) {
           await ctx.db.patch(session._id, {
             status: "paused",
+            pausedFrom: session.status,
+            pausedAt: args.now,
+            pauseReason: "delivery_failure",
             version: session.version + 1,
             updatedAt: args.now,
+          });
+          await ctx.db.insert("auditEvents", {
+            sessionId: session._id,
+            deliveryId: delivery._id,
+            type: "session.paused",
+            actorType: "system",
+            safeMetadata: {
+              reason: "delivery_failure",
+              channel: delivery.channel,
+            },
+            createdAt: args.now,
           });
         }
         if (delivery.injectId !== undefined) {
@@ -122,6 +151,9 @@ export const markFailed = mutation({
   },
   handler: async (ctx, args) => {
     const delivery = await ctx.db.get(args.deliveryId);
+    if (delivery?.status === "cancelled") {
+      return { permanent: true, cancelled: true };
+    }
     if (delivery === null || delivery.status !== "claimed") {
       throw new ConvexError("Delivery is not claimed");
     }
@@ -136,12 +168,26 @@ export const markFailed = mutation({
       const session = await ctx.db.get(delivery.sessionId);
       if (
         session !== null &&
-        ["running", "resolving"].includes(session.status)
+        (session.status === "running" || session.status === "resolving")
       ) {
         await ctx.db.patch(session._id, {
           status: "paused",
+          pausedFrom: session.status,
+          pausedAt: args.now,
+          pauseReason: "delivery_failure",
           version: session.version + 1,
           updatedAt: args.now,
+        });
+        await ctx.db.insert("auditEvents", {
+          sessionId: session._id,
+          deliveryId: delivery._id,
+          type: "session.paused",
+          actorType: "system",
+          safeMetadata: {
+            reason: "delivery_failure",
+            channel: delivery.channel,
+          },
+          createdAt: args.now,
         });
       }
       if (delivery.injectId !== undefined) {

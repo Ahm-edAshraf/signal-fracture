@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as checkpoint from "../checkpoint.js";
 import type * as contacts from "../contacts.js";
 import type * as dashboard from "../dashboard.js";
+import type * as deadlines from "../deadlines.js";
 import type * as decisions from "../decisions.js";
 import type * as health from "../health.js";
 import type * as inbound from "../inbound.js";
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   checkpoint: typeof checkpoint;
   contacts: typeof contacts;
   dashboard: typeof dashboard;
+  deadlines: typeof deadlines;
   decisions: typeof decisions;
   health: typeof health;
   inbound: typeof inbound;

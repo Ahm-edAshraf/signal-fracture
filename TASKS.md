@@ -37,6 +37,7 @@ Update truthfully. Do not check an item without evidence.
 - [x] Asteria scenario definition
 - [x] deterministic transition rules
 - [x] deterministic contradiction rules
+- [x] deterministic inject deadlines and timeout transitions
 - [x] canonical contradiction test
 - [x] resolution test
 - [x] deterministic metrics
@@ -93,7 +94,10 @@ Update truthfully. Do not check an item without evidence.
 - [x] red Bay 3 conflict
 - [x] delivery status
 - [x] retry/dedupe metrics
+- [x] deterministic coordination score
 - [x] who-knew-what-when report
+- [x] authenticated after-action report export
+- [x] guarded operator start/pause/resume/abort
 - [x] guarded demo reset
 
 ## P1 third channel and enhancements

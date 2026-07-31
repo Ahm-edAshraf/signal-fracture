@@ -3,6 +3,7 @@ import { createAgentRuntime } from "./runtime";
 import { runOutboxWorker } from "./outboxWorker";
 import { startHealthServer } from "./health";
 import { logPublic } from "./publicLog";
+import { runDeadlineWorker } from "./deadlineWorker";
 
 const controller = new AbortController();
 for (const event of ["SIGINT", "SIGTERM"] as const) {
@@ -38,6 +39,12 @@ await Promise.all([
     state: runtime.state,
     signal: controller.signal,
     maxAttempts: runtime.env.OUTBOX_MAX_ATTEMPTS,
+  }),
+  runDeadlineWorker({
+    state: runtime.state,
+    signal: controller.signal,
+    pollIntervalMs: 1_000,
+    maxBackoffMs: runtime.env.CASPIAN_MAX_BACKOFF_MS,
   }),
 ]);
 clearInterval(healthHeartbeat);

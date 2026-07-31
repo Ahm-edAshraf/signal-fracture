@@ -136,6 +136,12 @@ export async function handleInboundMessage(
     if (prompt === null) {
       body =
         "Signal Fracture received your message through the shared channel handler. Reply HELP for commands or JOIN ASTERIA <ROLE> <CODE> to enter the drill.";
+    } else if (prompt.sessionStatus === "paused") {
+      body =
+        prompt.pauseReason === "operator"
+          ? "The fictional exercise is paused by the operator. No decision was recorded; send the choice again after the exercise resumes."
+          : "The fictional exercise is paused by a deterministic safety rule. No decision was recorded; the operator must reset the drill after resolving the failed requirement.";
+      outcome = "decision.session_paused";
     } else if (prompt.status !== "open") {
       body =
         "Your next fictional inject is still being delivered. No decision was recorded.";

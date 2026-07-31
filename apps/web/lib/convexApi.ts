@@ -28,6 +28,17 @@ export const startDemoSession = makeFunctionReference<
   { status: "running" }
 >("sessions:start");
 
+export const controlDemoSession = makeFunctionReference<
+  "mutation",
+  {
+    operatorSecret: string;
+    sessionId: string;
+    action: "pause" | "resume" | "abort";
+    now: number;
+  },
+  { status?: "paused" | "running" | "resolving"; aborted?: boolean }
+>("sessions:control");
+
 export const resetDemoTenant = makeFunctionReference<
   "mutation",
   { operatorSecret: string; demoTenant: string },
@@ -41,6 +52,7 @@ export const currentOperatorSession = makeFunctionReference<
     sessionId: string;
     publicCode: string;
     status: string;
+    pauseReason: "operator" | "delivery_failure" | "deadline" | null;
     roles: { roleKey: "field" | "control" | "director"; status: string }[];
   }
 >("sessions:operatorCurrent");

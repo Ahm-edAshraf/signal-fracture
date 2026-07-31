@@ -23,6 +23,17 @@ export default defineSchema({
     ),
     version: v.number(),
     demoTenant: v.string(),
+    pausedFrom: v.optional(
+      v.union(v.literal("running"), v.literal("resolving")),
+    ),
+    pausedAt: v.optional(v.number()),
+    pauseReason: v.optional(
+      v.union(
+        v.literal("operator"),
+        v.literal("delivery_failure"),
+        v.literal("deadline"),
+      ),
+    ),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -133,6 +144,7 @@ export default defineSchema({
       ),
     ),
     opensAt: v.optional(v.number()),
+    deadlineAt: v.optional(v.number()),
     closesAt: v.optional(v.number()),
     clarificationCount: v.number(),
     version: v.number(),
@@ -272,6 +284,7 @@ export default defineSchema({
     ),
     roleId: v.optional(v.id("roles")),
     injectId: v.optional(v.id("injects")),
+    deliveryId: v.optional(v.id("deliveries")),
     decisionId: v.optional(v.id("decisions")),
     contradictionId: v.optional(v.id("contradictions")),
     safeMetadata: v.any(),

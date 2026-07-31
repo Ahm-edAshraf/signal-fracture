@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createRoleCode, hashRoleCode } from "@signal-fracture/shared";
 import {
   createDemoSession,
+  controlDemoSession,
   currentOperatorSession,
   resetDemoTenant,
   startDemoSession,
@@ -77,6 +78,19 @@ export async function POST(request: Request) {
     const result = await convex.mutation(startDemoSession, {
       operatorSecret: secret,
       sessionId: body.sessionId,
+      now,
+    });
+    return NextResponse.json(result);
+  }
+
+  if (
+    (action === "pause" || action === "resume" || action === "abort") &&
+    typeof body?.sessionId === "string"
+  ) {
+    const result = await convex.mutation(controlDemoSession, {
+      operatorSecret: secret,
+      sessionId: body.sessionId,
+      action,
       now,
     });
     return NextResponse.json(result);

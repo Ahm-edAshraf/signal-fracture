@@ -9,6 +9,7 @@ type DashboardState = {
     scenarioId: string;
     publicCode: string;
     status: string;
+    pauseReason: string | null;
     version: number;
     startedAt: number | null;
     completedAt: number | null;
@@ -40,6 +41,7 @@ type DashboardState = {
     roleKey: string;
     status: string;
     faultType: string | null;
+    deadlineAt?: number | null;
     updatedAt: number;
   }[];
   decisions?: {
@@ -138,7 +140,12 @@ function ShellHeader({ state }: { state: DashboardState | null }) {
         </a>
         <div className="header-meta">
           <span>ASTERIA / BAY 3</span>
-          <span className={`phase phase-${phase}`}>{phase}</span>
+          <span
+            className={`phase phase-${phase}`}
+            title={state?.session?.pauseReason ?? undefined}
+          >
+            {phase}
+          </span>
           <a className="operator-link" href="/operator">
             Operator console
           </a>
@@ -326,7 +333,7 @@ function Timeline({ state }: { state: DashboardState }) {
           at: item.updatedAt,
           kind: "inject" as const,
           title: `${item.injectKey} · ${item.roleKey}`,
-          detail: `Inject ${item.status}${item.faultType ? ` · ${formatKey(item.faultType)}` : ""}`,
+          detail: `Inject ${item.status}${item.faultType ? ` · ${formatKey(item.faultType)}` : ""}${item.deadlineAt ? ` · due ${timeText(item.deadlineAt)}` : ""}`,
         })),
         ...(state.decisions ?? []).map((item, index) => ({
           key: `decision-${index}`,
@@ -394,7 +401,15 @@ function ReportPanel({ state }: { state: DashboardState }) {
   const report = state.report;
   const metrics = report?.metrics ?? {};
   const reliability = state.reliability;
+  const coordinationScore =
+    typeof metrics.coordinationScore === "number"
+      ? metrics.coordinationScore
+      : null;
   const cards = [
+    [
+      "Coordination score",
+      coordinationScore === null ? "—" : `${coordinationScore}/100`,
+    ],
     [
       "Detection",
       relativeMs(metrics.contradictionDetectionMs as number | null),

@@ -21,6 +21,8 @@ export function OperatorClient() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [secret, setSecret] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<string | null>(null);
+  const [pauseReason, setPauseReason] = useState<string | null>(null);
   const [joins, setJoins] = useState<JoinInstruction[]>([]);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [roleStatuses, setRoleStatuses] = useState<
@@ -43,10 +45,14 @@ export function OperatorClient() {
     const body = (await response.json()) as {
       current: null | {
         sessionId: string;
+        status: string;
+        pauseReason: "operator" | "delivery_failure" | "deadline" | null;
         roles: { roleKey: JoinInstruction["role"]; status: string }[];
       };
     };
     setSessionId(body.current?.sessionId ?? null);
+    setSessionStatus(body.current?.status ?? null);
+    setPauseReason(body.current?.pauseReason ?? null);
     setRoleStatuses(body.current?.roles ?? []);
   }, []);
 
@@ -75,12 +81,20 @@ export function OperatorClient() {
   }
 
   async function action(
-    requested: "create" | "start" | "reset",
+    requested: "create" | "start" | "pause" | "resume" | "abort" | "reset",
   ): Promise<void> {
     if (
       requested === "reset" &&
       !window.confirm(
         "Reset the demo tenant? This permanently removes the current fictional session and its evidence.",
+      )
+    ) {
+      return;
+    }
+    if (
+      requested === "abort" &&
+      !window.confirm(
+        "Abort the current fictional exercise? Open injects and unsent deliveries will be cancelled.",
       )
     ) {
       return;
@@ -104,6 +118,8 @@ export function OperatorClient() {
       setNotice(body.error ?? "The operator action could not be completed.");
     } else if (requested === "create") {
       setSessionId(body.sessionId ?? null);
+      setSessionStatus("draft");
+      setPauseReason(null);
       setJoins(body.joins ?? []);
       setRoleStatuses(
         (["field", "control", "director"] as const).map((roleKey) => ({
@@ -116,11 +132,31 @@ export function OperatorClient() {
         "Session staged. Send each private command through its assigned channel.",
       );
     } else if (requested === "start") {
+      setSessionStatus("running");
+      setPauseReason(null);
       setNotice(
         "Scenario started. Initial injects are queued for real delivery.",
       );
+    } else if (requested === "pause") {
+      setSessionStatus("paused");
+      setPauseReason("operator");
+      setNotice(
+        "Exercise paused. Pending injects and participant decisions are held.",
+      );
+    } else if (requested === "resume") {
+      setSessionStatus(body.status ?? "running");
+      setPauseReason(null);
+      setNotice("Exercise resumed from its previous phase.");
+    } else if (requested === "abort") {
+      setSessionStatus("aborted");
+      setPauseReason(null);
+      setNotice(
+        "Exercise aborted. Open injects and deliveries were cancelled.",
+      );
     } else {
       setSessionId(null);
+      setSessionStatus(null);
+      setPauseReason(null);
       setJoins([]);
       setRoleStatuses([]);
       setExpiresAt(null);
@@ -142,6 +178,8 @@ export function OperatorClient() {
     await fetch("/api/operator/auth", { method: "DELETE" });
     setAuthenticated(false);
     setSessionId(null);
+    setSessionStatus(null);
+    setPauseReason(null);
     setJoins([]);
     setRoleStatuses([]);
   }
@@ -221,16 +259,66 @@ export function OperatorClient() {
                 2 · Start when joined
               </button>
               <button
+                className="secondary-action"
+                disabled={
+                  busy ||
+                  (sessionStatus !== "running" && sessionStatus !== "resolving")
+                }
+                onClick={() => void action("pause")}
+              >
+                Pause exercise
+              </button>
+              <button
+                className="secondary-action"
+                disabled={
+                  busy ||
+                  sessionStatus !== "paused" ||
+                  pauseReason !== "operator"
+                }
+                onClick={() => void action("resume")}
+              >
+                Resume exercise
+              </button>
+              <button
+                className="danger-action"
+                disabled={
+                  busy ||
+                  sessionId === null ||
+                  sessionStatus === "aborted" ||
+                  sessionStatus === "completed" ||
+                  sessionStatus === "failed"
+                }
+                onClick={() => void action("abort")}
+              >
+                Abort exercise
+              </button>
+              <button
                 className="danger-action"
                 disabled={busy}
                 onClick={() => void action("reset")}
               >
                 Reset demo tenant
               </button>
+              <button
+                className="secondary-action"
+                disabled={busy || sessionStatus !== "completed"}
+                onClick={() => window.location.assign("/api/operator/report")}
+              >
+                Export report
+              </button>
               <button className="text-action" onClick={() => void logout()}>
                 Sign out
               </button>
             </div>
+
+            <p className="operator-session-status" role="status">
+              Session state: {sessionStatus?.toUpperCase() ?? "NONE"}
+              {pauseReason === "delivery_failure"
+                ? " · DELIVERY FAILURE — RESET REQUIRED"
+                : pauseReason === "deadline"
+                  ? " · DEADLINE MISSED — RESET REQUIRED"
+                  : ""}
+            </p>
 
             <section className="join-board" aria-labelledby="join-heading">
               <div className="panel-heading">

@@ -1,5 +1,6 @@
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel, Id } from "./_generated/dataModel";
+import { calculateCoordinationScore } from "@signal-fracture/core";
 
 export async function writeDeterministicReport(
   ctx: GenericMutationCtx<DataModel>,
@@ -80,7 +81,27 @@ export async function writeDeterministicReport(
     ),
   );
   const roleById = new Map(roles.map((role) => [role._id, role]));
+  const contradictionResolutionMs =
+    contradiction?.resolvedAt === undefined
+      ? null
+      : contradiction.resolvedAt - contradiction.detectedAt;
+  const retryCount = sessionDeliveries.reduce(
+    (sum, delivery) => sum + Math.max(0, delivery.attempts - 1),
+    0,
+  );
+  const failedDeliveryCount = sessionDeliveries.filter(
+    ({ status }) => status === "failed",
+  ).length;
   const metrics = {
+    coordinationScore: calculateCoordinationScore({
+      contradictionCount: contradictions.length,
+      resolvedContradictionCount: contradictions.filter(
+        ({ status }) => status === "resolved",
+      ).length,
+      retryCount,
+      failedDeliveryCount,
+      contradictionResolutionMs,
+    }),
     sessionDurationMs:
       session.startedAt === undefined || session.completedAt === undefined
         ? null
@@ -102,18 +123,10 @@ export async function writeDeterministicReport(
       firstReconciliation?.appliedAt === undefined
         ? null
         : firstReconciliation.appliedAt - contradiction.detectedAt,
-    contradictionResolutionMs:
-      contradiction?.resolvedAt === undefined
-        ? null
-        : contradiction.resolvedAt - contradiction.detectedAt,
+    contradictionResolutionMs,
     deliveryLatencyMsByChannel: latencyByChannel,
-    retryCount: sessionDeliveries.reduce(
-      (sum, delivery) => sum + Math.max(0, delivery.attempts - 1),
-      0,
-    ),
-    failedDeliveryCount: sessionDeliveries.filter(
-      ({ status }) => status === "failed",
-    ).length,
+    retryCount,
+    failedDeliveryCount,
     contradictionCount: contradictions.length,
     timeline: [
       ...sessionKnowledge.map((item) => ({

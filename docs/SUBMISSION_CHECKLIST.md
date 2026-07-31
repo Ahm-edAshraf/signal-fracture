@@ -16,6 +16,9 @@ This file is intentionally conservative. An item is checked only after public or
 - [x] Pure deterministic canonical scenario passes
 - [x] Atomic Convex canonical scenario passes
 - [x] One Bay 3 contradiction is created and resolved exactly once in integration tests
+- [x] Guarded operator start, pause, resume, abort, and reset controls
+- [x] Deterministic deadlines, timeout behavior, and coordination scoring
+- [x] Authenticated completed-report export
 - [ ] Canonical three-channel live scenario completed
 - [ ] Dashboard reviewed against a live session
 - [ ] Who-knew-what-when report exported from a live session

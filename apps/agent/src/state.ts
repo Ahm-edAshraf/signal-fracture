@@ -7,6 +7,12 @@ import {
 } from "@signal-fracture/caspian";
 import type { GeminiReportNarrator } from "@signal-fracture/ai";
 
+export function channelHealthProjection(
+  channels: { channel: string; status: string }[],
+): { channel: string; status: string }[] {
+  return channels.map(({ channel, status }) => ({ channel, status }));
+}
+
 export class AgentState {
   readonly #client: ConvexHttpClient;
 
@@ -104,8 +110,18 @@ export class AgentState {
   ): Promise<void> {
     await this.#client.mutation(api.health.record, {
       operatorSecret: this.#operatorSecret,
-      channels,
+      channels: channelHealthProjection(channels),
       checkedAt: Date.now(),
+    });
+  }
+
+  async sweepDeadlines(): Promise<{
+    expiredCount: number;
+    expiredKeys: string[];
+  }> {
+    return await this.#client.mutation(api.deadlines.sweep, {
+      operatorSecret: this.#operatorSecret,
+      now: Date.now(),
     });
   }
 

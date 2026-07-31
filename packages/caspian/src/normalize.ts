@@ -2,6 +2,17 @@ import { createHash } from "node:crypto";
 import type { Message } from "caspian-sdk";
 import type { InboundEnvelope } from "./types";
 
+type NormalizableMessage = Pick<
+  Message,
+  | "id"
+  | "conversationId"
+  | "connectionId"
+  | "channel"
+  | "sender"
+  | "subject"
+  | "text"
+>;
+
 function stableJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
@@ -16,7 +27,7 @@ export function fingerprint(value: unknown): string {
 }
 
 export function normalizeCaspianMessage(
-  message: Message,
+  message: NormalizableMessage,
   receivedAt = Date.now(),
 ): InboundEnvelope {
   return {

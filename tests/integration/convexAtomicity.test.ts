@@ -118,16 +118,7 @@ describe("Convex atomic state", () => {
       conversationId: "telegram-field",
     });
     expect(status?.roleKey).toBe("field");
-    expect(status?.knownFacts.map(({ factKey }) => factKey)).toEqual(
-      expect.arrayContaining([
-        "bay3.pressureTrend",
-        "bay3.sensorConfidence",
-        "bay3.access",
-      ]),
-    );
-    expect(status?.knownFacts.map(({ factKey }) => factKey)).not.toContain(
-      "crew7.route",
-    );
+    expect(status?.knownFacts).toEqual([]);
   });
 
   it("starts only after all roles join and claims each outbox item once", async () => {
@@ -184,6 +175,28 @@ describe("Convex atomic state", () => {
     expect(
       new Set(claimed.map(({ idempotencyKey }) => idempotencyKey)).size,
     ).toBe(2);
+    const acknowledged = claimed[0];
+    if (acknowledged === undefined) throw new Error("Expected delivery");
+    await expect(
+      t.mutation(api.outbox.markSent, {
+        deliveryId: acknowledged._id,
+        latencyMs: 10,
+        now: 300,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      t.mutation(api.outbox.markSent, {
+        deliveryId: acknowledged._id,
+        latencyMs: 999,
+        now: 400,
+      }),
+    ).resolves.toBe(true);
+    const acknowledgedInject = await t.run(async (ctx) =>
+      acknowledged.injectId === undefined
+        ? null
+        : await ctx.db.get(acknowledged.injectId),
+    );
+    expect(acknowledgedInject?.opensAt).toBe(300);
   });
 
   it("pauses the branch after bounded permanent delivery failure", async () => {
@@ -271,8 +284,23 @@ describe("Convex atomic state", () => {
         retryAt: 300,
       }),
     ).resolves.toEqual({ permanent: true });
-    const session = await t.run(async (ctx) => await ctx.db.get(sessionId));
-    expect(session?.status).toBe("paused");
+    const { session, audits } = await t.run(async (ctx) => ({
+      session: await ctx.db.get(sessionId),
+      audits: await ctx.db
+        .query("auditEvents")
+        .withIndex("by_session_created", (q) => q.eq("sessionId", sessionId))
+        .collect(),
+    }));
+    expect(session).toMatchObject({
+      status: "paused",
+      pauseReason: "delivery_failure",
+    });
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({
+      type: "session.paused",
+      actorType: "system",
+      safeMetadata: { reason: "delivery_failure", channel: "telegram" },
+    });
   });
 
   it("pauses the branch when restart recovery exhausts a claimed delivery", async () => {
@@ -343,7 +371,10 @@ describe("Convex atomic state", () => {
       session: await ctx.db.get(sessionId),
       inject: await ctx.db.get(injectId),
     }));
-    expect(session?.status).toBe("paused");
+    expect(session).toMatchObject({
+      status: "paused",
+      pauseReason: "delivery_failure",
+    });
     expect(inject?.status).toBe("failed");
   });
 
@@ -398,6 +429,12 @@ describe("Convex atomic state", () => {
     }
 
     expect(await deliverAll(210)).toBe(2);
+    await expect(
+      t.run(async (ctx) => {
+        const knowledge = await ctx.db.query("roleKnowledge").collect();
+        return knowledge.filter((item) => item.sessionId === sessionId);
+      }),
+    ).resolves.toEqual([]);
     const fieldPrompt = await t.query(api.decisions.activePrompt, {
       conversationId: "field-conversation",
     });
@@ -536,12 +573,47 @@ describe("Convex atomic state", () => {
     expect(report).toMatchObject({
       status: "completed",
       metrics: {
+        coordinationScore: 90,
         contradictionCount: 1,
         fieldToControlConflictMs: 1_000,
         contradictionDetectionMs: 0,
         contradictionResolutionMs: 4_000,
       },
     });
+    const confirmedKnowledge = await t.run(async (ctx) => {
+      const [knowledge, roles] = await Promise.all([
+        ctx.db.query("roleKnowledge").collect(),
+        ctx.db
+          .query("roles")
+          .withIndex("by_session_role", (q) => q.eq("sessionId", sessionId))
+          .collect(),
+      ]);
+      const roleById = new Map(roles.map((role) => [role._id, role.roleKey]));
+      return knowledge
+        .filter((item) => item.sessionId === sessionId)
+        .map((item) => ({
+          role: roleById.get(item.roleId),
+          factKey: item.factKey,
+          observedValue: item.observedValue,
+          stale: item.stale,
+        }));
+    });
+    expect(confirmedKnowledge).toEqual(
+      expect.arrayContaining([
+        {
+          role: "control",
+          factKey: "bay3.access",
+          observedValue: "OPEN",
+          stale: true,
+        },
+        {
+          role: "control",
+          factKey: "bay3.access",
+          observedValue: "SEALED",
+          stale: false,
+        },
+      ]),
+    );
     const narrationInput = await t.query(api.reports.getNarrationInput, {
       operatorSecret,
       sessionId,
@@ -624,6 +696,295 @@ describe("Convex atomic state", () => {
       { channel: "discord", status: "active", checkedAt: 100 },
       { channel: "telegram", status: "active", checkedAt: 100 },
     ]);
+  });
+
+  it("guards operator pause, resume, and abort while holding the outbox", async () => {
+    const t = convexTest(schema, modules);
+    const context = await t.run(async (ctx) => {
+      const sessionId = await ctx.db.insert("sessions", {
+        scenarioId: "asteria-bay3-v1",
+        publicCode: "CONTROLLED",
+        status: "running",
+        version: 1,
+        demoTenant: "operator-control",
+        startedAt: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      const roleId = await ctx.db.insert("roles", {
+        sessionId,
+        roleKey: "field",
+        displayName: "Field Engineer",
+        publicAlias: "FE-1",
+        joinCodeHash: "hash",
+        joinCodeExpiresAt: 10_000,
+        status: "active",
+        version: 1,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      const injectId = await ctx.db.insert("injects", {
+        sessionId,
+        injectKey: "F1",
+        roleId,
+        status: "open",
+        exerciseText: "synthetic operator control test",
+        allowedDecisions: ["SEAL_BAY_3"],
+        prerequisiteKeys: [],
+        opensAt: 0,
+        deadlineAt: 100,
+        clarificationCount: 0,
+        version: 1,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      await ctx.db.patch(roleId, { currentInjectId: injectId });
+      await ctx.db.insert("endpoints", {
+        sessionId,
+        roleId,
+        channel: "telegram",
+        conversationId: "operator-control-conversation",
+        connectionId: "telegram-connection",
+        senderFingerprint: "sender-hash",
+        active: true,
+        joinedAt: 0,
+        lastSeenAt: 0,
+      });
+      const deliveryId = await ctx.db.insert("deliveries", {
+        idempotencyKey: "operator-control-delivery",
+        sessionId,
+        roleId,
+        injectId,
+        semanticType: "scenario.inject",
+        conversationId: "operator-control-conversation",
+        channel: "telegram",
+        payload: { text: "synthetic operator control test" },
+        status: "pending",
+        attempts: 0,
+        nextAttemptAt: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      return { sessionId, deliveryId };
+    });
+
+    await expect(
+      t.mutation(api.sessions.control, {
+        operatorSecret: "invalid-operator-secret",
+        sessionId: context.sessionId,
+        action: "pause",
+        now: 10,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      t.mutation(api.sessions.control, {
+        operatorSecret,
+        sessionId: context.sessionId,
+        action: "pause",
+        now: 10,
+      }),
+    ).resolves.toEqual({ status: "paused" });
+    await expect(
+      t.mutation(api.outbox.claimNext, { now: 11, workerId: "worker" }),
+    ).resolves.toBeNull();
+    await expect(
+      t.query(api.decisions.activePrompt, {
+        conversationId: "operator-control-conversation",
+      }),
+    ).resolves.toMatchObject({ sessionStatus: "paused" });
+
+    await expect(
+      t.mutation(api.sessions.control, {
+        operatorSecret,
+        sessionId: context.sessionId,
+        action: "resume",
+        now: 20,
+      }),
+    ).resolves.toEqual({ status: "running" });
+    const resumedSession = await t.run(
+      async (ctx) => await ctx.db.get(context.sessionId),
+    );
+    expect(resumedSession).not.toHaveProperty("pausedAt");
+    await expect(
+      t.run(async (ctx) => {
+        const inject = await ctx.db
+          .query("injects")
+          .withIndex("by_session_inject_key", (q) =>
+            q.eq("sessionId", context.sessionId).eq("injectKey", "F1"),
+          )
+          .unique();
+        return inject?.deadlineAt;
+      }),
+    ).resolves.toBe(110);
+    const claimed = await t.mutation(api.outbox.claimNext, {
+      now: 21,
+      workerId: "worker",
+    });
+    expect(claimed?._id).toBe(context.deliveryId);
+
+    await expect(
+      t.mutation(api.sessions.control, {
+        operatorSecret,
+        sessionId: context.sessionId,
+        action: "abort",
+        now: 22,
+      }),
+    ).resolves.toEqual({ aborted: true });
+    await expect(
+      t.mutation(api.outbox.markSent, {
+        deliveryId: context.deliveryId,
+        latencyMs: 5,
+        now: 23,
+      }),
+    ).resolves.toBe(false);
+
+    const evidence = await t.run(async (ctx) => ({
+      session: await ctx.db.get(context.sessionId),
+      delivery: await ctx.db.get(context.deliveryId),
+      audits: await ctx.db
+        .query("auditEvents")
+        .withIndex("by_session_created", (q) =>
+          q.eq("sessionId", context.sessionId),
+        )
+        .collect(),
+    }));
+    expect(evidence.session?.status).toBe("aborted");
+    expect(evidence.delivery?.status).toBe("cancelled");
+    expect(evidence.audits.map(({ type }) => type)).toEqual([
+      "session.paused",
+      "session.resumed",
+      "session.aborted",
+    ]);
+    expect(
+      evidence.audits.every(({ actorType }) => actorType === "operator"),
+    ).toBe(true);
+  });
+
+  it("advances F1 after its deterministic deadline and pauses later missed work", async () => {
+    const t = convexTest(schema, modules);
+    const sessionId = await t.mutation(api.sessions.createDemo, {
+      operatorSecret,
+      demoTenant: "deadline-test",
+      publicCode: "DEADLINE",
+      roleCodes: roleCodes(),
+      now: 0,
+    });
+    const joins = [
+      ["field", "field-code-hash", "telegram", "deadline-field"],
+      ["control", "control-code-hash", "discord", "deadline-control"],
+      ["director", "director-code-hash", "email", "deadline-director"],
+    ] as const;
+    for (const [roleKey, joinCodeHash, channel, conversationId] of joins) {
+      await t.mutation(api.roles.join, {
+        publicCode: "DEADLINE",
+        roleKey,
+        joinCodeHash,
+        conversationId,
+        connectionId: `${channel}-connection`,
+        channel,
+        senderFingerprint: `${roleKey}-fingerprint`,
+        now: 1,
+      });
+    }
+    await t.mutation(api.sessions.start, {
+      operatorSecret,
+      sessionId,
+      now: 2,
+    });
+    for (let index = 0; index < 2; index += 1) {
+      const delivery = await t.mutation(api.outbox.claimNext, {
+        now: 2,
+        workerId: `deadline-worker-${index}`,
+      });
+      if (delivery === null) throw new Error("Expected initial delivery");
+      await t.mutation(api.outbox.markSent, {
+        deliveryId: delivery._id,
+        latencyMs: 1,
+        now: 100,
+      });
+    }
+
+    await expect(
+      t.mutation(api.deadlines.sweep, {
+        operatorSecret: "invalid-operator-secret",
+        now: 120_100,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      t.mutation(api.deadlines.sweep, {
+        operatorSecret,
+        now: 120_099,
+      }),
+    ).resolves.toEqual({ expiredCount: 0, expiredKeys: [] });
+    await expect(
+      t.mutation(api.deadlines.sweep, {
+        operatorSecret,
+        now: 120_100,
+      }),
+    ).resolves.toEqual({ expiredCount: 1, expiredKeys: ["F1"] });
+    await expect(
+      t.mutation(api.deadlines.sweep, {
+        operatorSecret,
+        now: 120_100,
+      }),
+    ).resolves.toEqual({ expiredCount: 0, expiredKeys: [] });
+
+    const directorPrompt = await t.query(api.decisions.activePrompt, {
+      conversationId: "deadline-director",
+    });
+    if (directorPrompt === null) throw new Error("Expected D1 prompt");
+    await t.mutation(api.decisions.accept, {
+      inboundEventId: "deadline-director-decision",
+      conversationId: "deadline-director",
+      injectId: directorPrompt.injectId,
+      expectedInjectVersion: directorPrompt.version,
+      canonicalDecision: "WAIT_FOR_CONFIRMATION",
+      parseMethod: "command",
+      rawTextRedacted: "WAIT FOR CONFIRMATION",
+      now: 120_101,
+    });
+
+    const controlDelivery = await t.mutation(api.outbox.claimNext, {
+      now: 120_102,
+      workerId: "deadline-control-worker",
+    });
+    if (controlDelivery === null) throw new Error("Expected C1 delivery");
+    await t.mutation(api.outbox.markSent, {
+      deliveryId: controlDelivery._id,
+      latencyMs: 1,
+      now: 120_103,
+    });
+    await expect(
+      t.mutation(api.deadlines.sweep, {
+        operatorSecret,
+        now: 240_103,
+      }),
+    ).resolves.toEqual({ expiredCount: 1, expiredKeys: ["C1"] });
+
+    const evidence = await t.run(async (ctx) => ({
+      session: await ctx.db.get(sessionId),
+      injects: await ctx.db
+        .query("injects")
+        .withIndex("by_session_inject_key", (q) => q.eq("sessionId", sessionId))
+        .collect(),
+    }));
+    expect(evidence.session).toMatchObject({
+      status: "paused",
+      pauseReason: "deadline",
+    });
+    expect(
+      Object.fromEntries(
+        evidence.injects.map(({ injectKey, status }) => [injectKey, status]),
+      ),
+    ).toMatchObject({ F1: "expired", C1: "expired" });
+    await expect(
+      t.mutation(api.sessions.control, {
+        operatorSecret,
+        sessionId,
+        action: "resume",
+        now: 240_104,
+      }),
+    ).rejects.toThrow();
   });
 
   it("resets only the guarded demo tenant", async () => {

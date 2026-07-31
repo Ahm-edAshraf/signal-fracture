@@ -201,7 +201,7 @@ Expected: `PASSAGE_BLOCKED`
 
 ### RC1 — Control correction
 
-> New field state conflicts with your route. Choose: `REROUTE BAY 5` or `REQUEST OVERRIDE`.
+> Field reports Bay 3 sealed, which conflicts with your Crew 7 route. Choose: `REROUTE BAY 5` or `REQUEST OVERRIDE`.
 
 Expected: `REROUTE_BAY_5`
 
@@ -213,7 +213,7 @@ Subject:
 [EXERCISE] Coordination fault detected — escalation required
 ```
 
-> Routing conflicts with field containment. Choose: `ESCALATE NOW` or `HOLD`.
+> Crew 7 is routed through Bay 3 while Field reports it sealed. Choose: `ESCALATE NOW` or `HOLD`.
 
 Expected: `ESCALATE_NOW`
 
@@ -253,6 +253,16 @@ Compute deterministically:
 - retries;
 - duplicate event count;
 - stale response count.
+- coordination score from deterministic contradiction, resolution-time, retry, and delivery-failure penalties.
+
+## Deterministic response deadlines
+
+Response windows begin after Caspian accepts the outbound send:
+
+- F1, C1, RF1, and RC1: 120 seconds;
+- D1 and RD1: 180 seconds.
+
+F1 expiry opens C1 because its documented prerequisite allows the demo timeout. Any later missed inject is expired and the session enters a reset-required safety pause. An operator-originated pause freezes open response clocks and shifts them by the pause duration on resume.
 
 ## Scenario engine contract
 

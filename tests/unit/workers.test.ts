@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runDurableEventLoop } from "../../apps/agent/src/durableEventLoop";
 import { runOutboxWorker } from "../../apps/agent/src/outboxWorker";
+import { runDeadlineWorker } from "../../apps/agent/src/deadlineWorker";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -41,7 +42,77 @@ describe("durable event loop recovery", () => {
   });
 });
 
+describe("deadline worker recovery", () => {
+  it("retries a transient sweep error and continues", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const controller = new AbortController();
+    const sweepDeadlines = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("temporarily unavailable"))
+      .mockImplementationOnce(() => {
+        controller.abort();
+        return Promise.resolve({ expiredCount: 0, expiredKeys: [] });
+      });
+
+    const worker = runDeadlineWorker({
+      state: { sweepDeadlines },
+      signal: controller.signal,
+      pollIntervalMs: 10,
+      maxBackoffMs: 100,
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    await worker;
+
+    expect(sweepDeadlines).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("outbox worker recovery", () => {
+  it.each(["email", "telegram", "discord"])(
+    "persists a bounded %s provider failure without terminating",
+    async (channel) => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const controller = new AbortController();
+      const providerError = Object.assign(new Error("provider unavailable"), {
+        statusCode: 503,
+      });
+      const sendMessage = vi.fn().mockRejectedValue(providerError);
+      const markDeliveryFailed = vi.fn().mockImplementation(() => {
+        controller.abort();
+        return Promise.resolve({ permanent: false });
+      });
+      const state = {
+        recoverStaleDeliveries: vi.fn().mockResolvedValue(undefined),
+        claimNextDelivery: vi.fn().mockResolvedValue({
+          _id: "delivery-id",
+          attempts: 1,
+          channel,
+          conversationId: "private-conversation",
+          payload: { text: "exercise inject" },
+        }),
+        markDeliverySent: vi.fn(),
+        markDeliveryFailed,
+      };
+
+      await runOutboxWorker({
+        client: { sendMessage },
+        state,
+        signal: controller.signal,
+        maxAttempts: 3,
+      });
+
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+      expect(markDeliveryFailed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          errorCode: "caspian_http_503",
+          maxAttempts: 3,
+        }),
+      );
+      expect(state.markDeliverySent).not.toHaveBeenCalled();
+    },
+  );
+
   it("retries only the acknowledgement after a provider send succeeds", async () => {
     vi.useFakeTimers();
     vi.spyOn(console, "error").mockImplementation(() => undefined);
