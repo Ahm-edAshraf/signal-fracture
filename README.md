@@ -31,7 +31,7 @@ The implementation is active, but submission readiness is not claimed yet.
 | Email              | Real inbound, shared-handler reply, and proactive persisted-conversation send pass        |
 | Telegram           | Real inbound, shared-handler reply, and proactive persisted-conversation send pass        |
 | Discord            | Real inbound, shared-handler reply, and proactive persisted-conversation send pass        |
-| Durable state      | Convex dev deployment, atomic inbound claim, monotonic checkpoint, outbox                 |
+| Durable state      | Production Convex deployment, atomic inbound claim, monotonic checkpoint, outbox          |
 | Canonical scenario | Pure and Convex integration flows pass; live three-channel rehearsal pending              |
 | Public deployment  | Live evidence dashboard on Vercel; production Convex functions and worker deployed        |
 
