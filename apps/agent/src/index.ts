@@ -39,6 +39,7 @@ await Promise.all([
     state: runtime.state,
     signal: controller.signal,
     maxAttempts: runtime.env.OUTBOX_MAX_ATTEMPTS,
+    channelCapabilities: runtime.channelCapabilities,
   }),
   runDeadlineWorker({
     state: runtime.state,

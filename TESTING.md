@@ -73,6 +73,8 @@ Assert schemas and canonical choice, not prose.
 - join code single use;
 - endpoint upsert;
 - event ID unique;
+- claimed-but-unfinished event recovery;
+- 100 processed-event replays produce no repeated consequence;
 - decision atomic acceptance;
 - expected version check;
 - transition + fact + audit atomicity;
@@ -96,6 +98,9 @@ Use sanitized payload fixtures from the audited SDK.
 - message ID;
 - text presenter;
 - rich-block capability gate;
+- interaction atomic claim and duplicate replay;
+- reaction capability gate;
+- media capability gate;
 - proactive send request shape;
 - retryable error classification;
 - paid/account error display;
@@ -154,7 +159,7 @@ Record in `docs/LIVE_TEST_EVIDENCE.md`.
 2. process N+1 and crash before checkpoint write;
 3. restart from N;
 4. replay N+1;
-5. Convex dedup no-ops;
+5. the durable `claimed` record resumes and finishes once;
 6. process N+2;
 7. checkpoint advances.
 

@@ -149,6 +149,13 @@ describe("outbox worker recovery", () => {
     await worker;
 
     expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledWith(
+      "private-conversation",
+      "exercise inject",
+      null,
+      null,
+      null,
+    );
     expect(markDeliverySent).toHaveBeenCalledTimes(2);
     expect(state.markDeliveryFailed).not.toHaveBeenCalled();
   });

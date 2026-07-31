@@ -242,6 +242,13 @@ decision.control.route = BAY_3
 - The dashboard distinguishes queued, sent, delivered, failed, and acknowledged.
 - No silent cross-channel substitution.
 
+## Terminal semantics
+
+- All answered initial injects without a contradiction complete safely and cancel unused reconciliation work.
+- A detected contradiction always opens reconciliation after the Director answers an allowed D1 choice.
+- The fixed safe reconciliation trio resolves and completes; a fully answered unsafe trio fails explicitly.
+- Completed and failed sessions close answered injects, cancel unused planned injects, clear active role pointers, and write the deterministic report.
+
 ## Clarification policy
 
 Ask one concise clarification when:

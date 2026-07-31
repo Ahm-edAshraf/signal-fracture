@@ -33,7 +33,9 @@ The dashboard makes the fracture visible: global world truth sits beside each ro
 
 Caspian is the communication plane, not an alerting add-on. One official `CommClient` connects Email, Telegram, and Discord. Exactly one shared `client.onMessage(...)` handler normalizes every participant response and sends it through the same channel-neutral domain logic. Immediate acknowledgements use `message.reply(...)`; planned injects and reconciliation prompts use `client.sendMessage(...)` against conversation IDs captured from real inbound traffic.
 
-The worker persists its Caspian event checkpoint in Convex and polls with `dispatchPending(savedSeq)`. A crash may replay an event, but atomic message claims and stable outbound keys prevent repeated domain consequences.
+The worker persists its Caspian event checkpoint in Convex and polls with `dispatchPending(savedSeq)`. A crash may replay an event: processed records deduplicate, while claimed-but-unfinished records resume safely. Expected versions and stable outbound keys prevent repeated domain consequences.
+
+At startup, the worker reads Caspian's authenticated capability catalog. Rich blocks are presentation-only, and optional buttons, reactions, or media are sent only where supported. Buttons enter through the same atomic claim and deterministic decision mutation; complete text choices remain available everywhere.
 
 ## How we built it
 
@@ -63,6 +65,8 @@ Gemini never owns world state or scenario control. Exact decisions bypass the mo
 - Server-only Convex operator authority exchanged for a short-lived HttpOnly/SameSite cookie
 - Mandatory fictional-exercise banner on participant-facing messages
 - Conservative role knowledge recorded only after a participant reply confirms receipt
+- Explicit terminal behavior for safe, resolved-conflict, and unsafe-reconciliation branches
+- Aggregate Gemini classification and report-narration latency, with participant text and prompts excluded from the public projection
 
 ## Verified results so far
 
@@ -70,7 +74,7 @@ Gemini never owns world state or scenario control. Exact decisions bypass the mo
 - Real inbound, same-thread reply, and proactive persisted-conversation send verified on all 3 channels
 - Exactly 1 shared `client.onMessage(...)` registration
 - Durable production worker healthy with all 3 channels ready
-- 39 unit tests, 12 Convex integration tests, and 4 production-browser checks passing
+- 52 unit tests, 14 Convex integration tests, and 4 production-browser checks passing locally before the current production redeploy
 - Fresh public clone passes frozen installation and the complete root quality gate without project secrets
 - Canonical deterministic and Convex integration scenarios create and resolve exactly 1 Bay 3 contradiction
 - Completed reports have an authenticated, privacy-safe JSON export
@@ -89,7 +93,7 @@ A shared portal hides communication failure. Once each participant stays in a re
 
 ## What's next
 
-After the buildathon, the same engine could support more fictional scenarios, configurable fault patterns, richer capability-gated interactions, and comparative team-level rehearsal analytics. The near-term priority remains narrower: complete repeated live rehearsals, measure the actual coordination timings, and keep the evidence honest.
+After the buildathon, the same engine could support more fictional scenarios, configurable fault patterns, and comparative team-level rehearsal analytics. The near-term priority remains narrower: live-verify the capability-gated enhancements, complete repeated rehearsals, measure the actual coordination timings, and keep the evidence honest.
 
 ## Links
 

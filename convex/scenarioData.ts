@@ -112,6 +112,32 @@ export function deadlineForInject(injectKey: string): number {
     : 120_000;
 }
 
+export function blocksForInject(input: {
+  injectKey: string;
+  exerciseText: string;
+  emailSubject?: string;
+  allowedDecisions: string[];
+}) {
+  return [
+    { type: "text", text: EXERCISE_BANNER },
+    {
+      type: "heading",
+      text: input.emailSubject ?? `Asteria Station · ${input.injectKey}`,
+    },
+    {
+      type: "text",
+      text: input.exerciseText.slice(EXERCISE_BANNER.length).trim(),
+    },
+    {
+      type: "buttons",
+      buttons: input.allowedDecisions.map((decision) => ({
+        label: decision.replaceAll("_", " "),
+        value: `decision:${decision}`,
+      })),
+    },
+  ];
+}
+
 export async function queueScenarioInject(
   ctx: GenericMutationCtx<DataModel>,
   sessionId: Id<"sessions">,
@@ -166,6 +192,7 @@ export async function queueScenarioInject(
     channel: endpoint.channel,
     payload: {
       text: inject.exerciseText,
+      blocks: blocksForInject(inject),
       ...(inject.emailSubject === undefined
         ? {}
         : {

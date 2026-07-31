@@ -147,6 +147,8 @@ export const publicState = query({
           decision: decision.canonicalDecision ?? null,
           status: decision.status,
           parseMethod: decision.parseMethod,
+          modelLatencyMs: decision.modelLatencyMs ?? null,
+          modelUsed: decision.modelUsed ?? null,
           at: decision.appliedAt ?? decision.createdAt,
         }))
         .sort((a, b) => a.at - b.at),
@@ -176,6 +178,7 @@ export const publicState = query({
         .map((event) => ({
           eventRef: eventRef(event.caspianEventId),
           channel: event.channel,
+          mediaCount: event.mediaCount ?? 0,
           status: event.status,
           duplicateCount: event.duplicateCount ?? 0,
           receivedAt: event.receivedAt,
@@ -189,6 +192,8 @@ export const publicState = query({
               metrics: report.metrics,
               deterministicSummary: report.deterministicSummary,
               narrative: report.narrative ?? null,
+              narrativeModelLatencyMs: report.narrativeModelLatencyMs ?? null,
+              narrativeModelUsed: report.narrativeModelUsed ?? null,
               generatedAt: report.generatedAt,
             },
       reliability: {

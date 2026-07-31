@@ -11,6 +11,7 @@ export type InboundEnvelope = {
   senderFingerprint: string;
   subject: string | null;
   text: string;
+  mediaCount: number;
   receivedAt: number;
 };
 

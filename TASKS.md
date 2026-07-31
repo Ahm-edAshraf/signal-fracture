@@ -108,10 +108,10 @@ Update truthfully. Do not check an item without evidence.
 - [x] proactive Discord send
 - [ ] three-channel canonical demo
 - [x] text fallback everywhere
-- [ ] capability-aware rich blocks
-- [ ] optional button test
-- [ ] optional reaction test
-- [ ] optional media test
+- [x] capability-aware rich blocks (adapter and unit test)
+- [x] optional button path (atomic replay-safe unit test; live smoke pending)
+- [x] optional reaction gate (unit test; live smoke pending)
+- [x] optional media gate (unit test; live smoke pending)
 
 ## Reliability
 
@@ -125,9 +125,9 @@ Update truthfully. Do not check an item without evidence.
 - [x] invalid role
 - [x] primary model failure
 - [x] total model outage
-- [ ] Email delivery failure
-- [ ] Telegram delivery failure
-- [ ] Discord delivery failure
+- [x] Email delivery failure (bounded provider-failure test)
+- [x] Telegram delivery failure (bounded provider-failure test)
+- [x] Discord delivery failure (bounded provider-failure test)
 - [x] abort during active session
 - [x] session reset isolation
 - [x] rate limiting

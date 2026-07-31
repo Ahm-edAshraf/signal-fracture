@@ -108,6 +108,11 @@ describe("Asteria deterministic scenario", () => {
     expect(completed.facts["commander.notified"]?.value).toBe(true);
     expect(completed.facts["incident.escalation"]?.value).toBe("ESCALATED");
     expect(completed.contradictions[0]?.status).toBe("resolved");
+    expect(
+      Object.values(completed.injects).every(
+        ({ status }) => status === "closed",
+      ),
+    ).toBe(true);
 
     expect(calculateMetrics(completed)).toMatchObject({
       coordinationScore: 90,
@@ -117,6 +122,41 @@ describe("Asteria deterministic scenario", () => {
       contradictionResolutionMs: 4_000,
       duplicateInboundCount: 0,
     });
+  });
+
+  it("completes a safe no-conflict branch and cancels unused reconciliation", () => {
+    let state = createAsteriaState(0);
+    state = decide(state, "field", "F1", "SEAL_BAY_3", 1_000).state;
+    state = decide(state, "control", "C1", "ROUTE_BAY_5", 2_000).state;
+    state = decide(state, "director", "D1", "NOTIFY_COMMANDER", 3_000).state;
+
+    expect(state.status).toBe("completed");
+    expect(state.contradictions).toHaveLength(0);
+    expect(state.injects.F1?.status).toBe("closed");
+    expect(state.injects.C1?.status).toBe("closed");
+    expect(state.injects.D1?.status).toBe("closed");
+    expect(state.injects.RF1?.status).toBe("cancelled");
+    expect(state.injects.RC1?.status).toBe("cancelled");
+    expect(state.injects.RD1?.status).toBe("cancelled");
+  });
+
+  it("opens reconciliation after either Director choice and fails an unsafe resolution", () => {
+    let state = createAsteriaState(0);
+    state = decide(state, "director", "D1", "NOTIFY_COMMANDER", 500).state;
+    state = decide(state, "field", "F1", "SEAL_BAY_3", 1_000).state;
+    state = decide(state, "control", "C1", "ROUTE_BAY_3", 2_000).state;
+    expect(state.status).toBe("resolving");
+
+    state = decide(state, "field", "RF1", "PASSAGE_AVAILABLE", 3_000).state;
+    state = decide(state, "control", "RC1", "REQUEST_OVERRIDE", 4_000).state;
+    state = decide(state, "director", "RD1", "HOLD", 5_000).state;
+
+    expect(state.status).toBe("failed");
+    expect(state.completedAt).toBe(5_000);
+    expect(state.contradictions[0]?.status).toBe("notified");
+    expect(
+      Object.values(state.injects).every(({ status }) => status === "closed"),
+    ).toBe(true);
   });
 
   it("scores only deterministic outcomes and reliability penalties", () => {

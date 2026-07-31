@@ -83,22 +83,38 @@ function maybeOpenReconciliation(
 }
 
 function maybeComplete(state: ScenarioState, at: number): void {
-  if (
-    !latestDecision(state, "PASSAGE_BLOCKED") ||
-    !latestDecision(state, "REROUTE_BAY_5") ||
-    !latestDecision(state, "ESCALATE_NOW")
-  ) {
-    return;
-  }
   const contradiction = state.contradictions.find(
     ({ key }) => key === "C-BAY3",
   );
-  if (contradiction !== undefined) {
+  const initialAnswered = ["F1", "C1", "D1"].every(
+    (key) => state.injects[key]?.status === "answered",
+  );
+  const safelyResolved =
+    latestDecision(state, "PASSAGE_BLOCKED") &&
+    latestDecision(state, "REROUTE_BAY_5") &&
+    latestDecision(state, "ESCALATE_NOW");
+  const reconciliationAnswered = ["RF1", "RC1", "RD1"].every(
+    (key) => state.injects[key]?.status === "answered",
+  );
+  if (contradiction === undefined && !initialAnswered) return;
+  if (
+    contradiction !== undefined &&
+    !safelyResolved &&
+    !reconciliationAnswered
+  ) {
+    return;
+  }
+  if (contradiction !== undefined && safelyResolved) {
     contradiction.status = "resolved";
     contradiction.resolvedAt ??= at;
   }
-  state.status = "completed";
+  state.status =
+    contradiction === undefined || safelyResolved ? "completed" : "failed";
   state.completedAt = at;
+  for (const inject of Object.values(state.injects)) {
+    if (inject.status === "answered") inject.status = "closed";
+    else if (inject.status === "planned") inject.status = "cancelled";
+  }
   state.activeInjectByRole = { field: null, control: null, director: null };
 }
 

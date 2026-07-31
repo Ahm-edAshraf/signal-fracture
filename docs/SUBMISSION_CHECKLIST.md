@@ -31,6 +31,8 @@ This file is intentionally conservative. An item is checked only after public or
 - [x] Bounded retry and permanent failure pause
 - [x] Exact-command model bypass
 - [x] Gemini primary/fallback/total-outage contracts
+- [x] Claimed inbound recovery and 100 duplicate replay regression
+- [x] Capability-gated optional interaction path enters through atomic deduplication
 - [ ] Induced process crash during a live scenario
 - [ ] Ten consecutive live rehearsals
 

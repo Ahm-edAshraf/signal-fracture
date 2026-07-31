@@ -264,6 +264,14 @@ Response windows begin after Caspian accepts the outbound send:
 
 F1 expiry opens C1 because its documented prerequisite allows the demo timeout. Any later missed inject is expired and the session enters a reset-required safety pause. An operator-originated pause freezes open response clocks and shifts them by the pause duration on resume.
 
+## Terminal branch rules
+
+- If F1, C1, and D1 are all answered without creating a contradiction, the session completes and unused reconciliation injects are cancelled.
+- If `C-BAY3` exists, all three reconciliation injects open after D1 is answered, regardless of which allowed Director choice was selected.
+- `PASSAGE_BLOCKED` + `REROUTE_BAY_5` + `ESCALATE_NOW` resolves the contradiction and completes the session.
+- If all three reconciliation injects are answered without that safe trio, the session ends `failed` with the contradiction unresolved.
+- Every terminal path closes answered injects, cancels unused planned injects, clears active role pointers, and writes the deterministic report.
+
 ## Scenario engine contract
 
 The scenario definition should be data-driven, but only this fixed scenario is required.

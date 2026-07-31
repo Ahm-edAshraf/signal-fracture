@@ -9,6 +9,8 @@ describe("state machines", () => {
     expect(canTransitionSession("draft", "ready")).toBe(true);
     expect(canTransitionSession("running", "resolving")).toBe(true);
     expect(canTransitionSession("paused", "aborted")).toBe(true);
+    expect(canTransitionSession("paused", "resolving")).toBe(true);
+    expect(canTransitionSession("draft", "aborted")).toBe(true);
   });
 
   it("keeps final session states immutable", () => {
@@ -19,6 +21,7 @@ describe("state machines", () => {
 
   it("models retry and open inject paths without regressions", () => {
     expect(canTransitionInject("queued", "retrying")).toBe(true);
+    expect(canTransitionInject("queued", "open")).toBe(true);
     expect(canTransitionInject("retrying", "sent")).toBe(true);
     expect(canTransitionInject("open", "answered")).toBe(true);
     expect(canTransitionInject("answered", "open")).toBe(false);

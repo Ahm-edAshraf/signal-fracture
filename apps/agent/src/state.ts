@@ -32,6 +32,7 @@ export class AgentState {
       connectionId: envelope.connectionId,
       channel: envelope.channel,
       senderFingerprint: envelope.senderFingerprint,
+      mediaCount: envelope.mediaCount,
       receivedAt: envelope.receivedAt,
     });
   }
@@ -180,6 +181,9 @@ export class AgentState {
       | "HOLD";
     parseMethod: "command" | "phrase" | "gemini" | "clarification";
     confidence?: number;
+    rationaleSummary?: string;
+    modelLatencyMs?: number;
+    modelUsed?: "primary" | "fallback" | "none";
     rawTextRedacted: string;
   }) {
     return await this.#client.mutation(api.decisions.accept, {
@@ -194,6 +198,8 @@ export class AgentState {
     injectId: Id<"injects">;
     expectedInjectVersion: number;
     rawTextRedacted: string;
+    modelLatencyMs?: number;
+    modelUsed?: "primary" | "fallback" | "none";
   }) {
     return await this.#client.mutation(api.decisions.requestClarification, {
       ...input,
@@ -210,12 +216,16 @@ export class AgentState {
       sessionId,
     });
     if (input === null) return false;
+    const startedAt = Date.now();
     const outcome = await narrator.narrate(input);
+    const modelLatencyMs = Date.now() - startedAt;
     if (outcome.status !== "generated") return false;
     return await this.#client.mutation(api.reports.attachNarrative, {
       operatorSecret: this.#operatorSecret,
       reportId: input.reportId,
       narrative: outcome.narrative,
+      modelLatencyMs,
+      modelUsed: outcome.model,
     });
   }
 }

@@ -22,7 +22,7 @@ Convex stores the checkpoint, inbound claims, conversation contacts, role endpoi
 
 Status: accepted
 
-Every judged action is available as text. Blocks, buttons, reactions, and media remain optional until real channel tests justify them.
+Every judged action is available as text. Authenticated capabilities may enable blocks, buttons, reactions, and media, but those affordances are optional and cannot remove or change the text decision path.
 
 ## ADR-005 — Deterministic scenario engine
 
@@ -83,3 +83,21 @@ The score starts at 100 and subtracts 10 per contradiction, 25 per unresolved co
 Status: accepted
 
 Caspian provider acceptance is stored as `sent`; it is not presented as a read receipt. Runtime role-knowledge records for an inject are therefore created when that participant replies to the active inject, proving they received its contents no later than that timestamp. Repeated clarification or acknowledgement retries do not duplicate knowledge. This keeps the who-knew-what-when report conservative.
+
+## ADR-015 — Claimed inbound events are recoverable work
+
+Status: accepted
+
+A replay of a fully processed inbound event is a duplicate and stops before business logic. A replay whose durable record is still `claimed` or `failed` resumes processing instead. This closes the crash window between atomic claim and completion for the single-worker deployment while expected versions and stable effect keys continue to prevent repeated decisions and transitions.
+
+## ADR-016 — Optional SDK capabilities are runtime-gated
+
+Status: accepted
+
+The worker reads the authenticated capability catalog after connecting channels. Rich blocks are presentation-only; buttons, reactions, and media are passed only when their capability is advertised. Button decisions use the same atomic inbound claim and deterministic acceptance mutation as text. Text remains the only qualification-critical and rehearsal-required path until optional affordances are live-verified.
+
+## ADR-017 — Every allowed decision branch terminates
+
+Status: accepted
+
+The three initial prompts can complete safely without a contradiction. A detected contradiction opens all three reconciliation prompts after the Director answers. The exact safe trio resolves and completes; any fully answered unsafe trio fails explicitly. Finalization closes answered injects, cancels unused planned injects, clears role pointers, freezes a deterministic report, and leaves no hidden active state.

@@ -224,12 +224,18 @@ async function maybeQueueReconciliation(
     )
     .unique();
   if (contradiction === null) return;
-  const directorAnswered = await hasAppliedDecision(
-    ctx,
-    session._id,
-    "WAIT_FOR_CONFIRMATION",
-  );
-  if (!directorAnswered) return;
+  const directorInject = await ctx.db
+    .query("injects")
+    .withIndex("by_session_inject_key", (q) =>
+      q.eq("sessionId", session._id).eq("injectKey", "D1"),
+    )
+    .unique();
+  if (
+    directorInject === null ||
+    !["answered", "closed"].includes(directorInject.status)
+  ) {
+    return;
+  }
   const opened = await Promise.all(
     ["RF1", "RC1", "RD1"].map(
       async (injectKey) =>
@@ -251,37 +257,107 @@ async function maybeQueueReconciliation(
   }
 }
 
-async function maybeComplete(
+async function maybeFinalize(
   ctx: MutationCtx,
   session: Doc<"sessions">,
   now: number,
 ): Promise<boolean> {
-  const completed = await Promise.all(
+  const safelyResolved = await Promise.all(
     ["PASSAGE_BLOCKED", "REROUTE_BAY_5", "ESCALATE_NOW"].map(
       async (decision) => await hasAppliedDecision(ctx, session._id, decision),
     ),
   );
-  if (!completed.every(Boolean)) return false;
-  const current = await ctx.db.get(session._id);
-  if (current === null || current.status === "completed") return false;
+  const [current, contradiction, injects, roles] = await Promise.all([
+    ctx.db.get(session._id),
+    ctx.db
+      .query("contradictions")
+      .withIndex("by_session_key", (q) =>
+        q.eq("sessionId", session._id).eq("contradictionKey", "C-BAY3"),
+      )
+      .unique(),
+    ctx.db
+      .query("injects")
+      .withIndex("by_session_inject_key", (q) => q.eq("sessionId", session._id))
+      .collect(),
+    ctx.db
+      .query("roles")
+      .withIndex("by_session_role", (q) => q.eq("sessionId", session._id))
+      .collect(),
+  ]);
+  if (
+    current === null ||
+    ["completed", "failed", "aborted"].includes(current.status)
+  ) {
+    return false;
+  }
+  const byKey = new Map(injects.map((inject) => [inject.injectKey, inject]));
+  const initialFinished = ["F1", "C1", "D1"].every((key) =>
+    ["answered", "closed", "expired"].includes(
+      byKey.get(key)?.status ?? "planned",
+    ),
+  );
+  const reconciliationFinished = ["RF1", "RC1", "RD1"].every((key) =>
+    ["answered", "closed"].includes(byKey.get(key)?.status ?? "planned"),
+  );
+  const resolved = safelyResolved.every(Boolean);
+  if (contradiction === null && !initialFinished) return false;
+  if (contradiction !== null && !resolved && !reconciliationFinished) {
+    return false;
+  }
+  const finalStatus =
+    contradiction === null || resolved
+      ? ("completed" as const)
+      : ("failed" as const);
   await ctx.db.patch(current._id, {
-    status: "completed",
+    status: finalStatus,
     version: current.version + 1,
     completedAt: now,
     updatedAt: now,
   });
-  const contradiction = await ctx.db
-    .query("contradictions")
-    .withIndex("by_session_key", (q) =>
-      q.eq("sessionId", session._id).eq("contradictionKey", "C-BAY3"),
-    )
-    .unique();
-  if (contradiction !== null) {
+  for (const inject of injects) {
+    if (inject.status === "answered") {
+      await ctx.db.patch(inject._id, {
+        status: "closed",
+        version: inject.version + 1,
+        updatedAt: now,
+      });
+    } else if (inject.status === "planned") {
+      await ctx.db.patch(inject._id, {
+        status: "cancelled",
+        version: inject.version + 1,
+        updatedAt: now,
+      });
+    }
+  }
+  for (const role of roles) {
+    await ctx.db.patch(role._id, {
+      currentInjectId: undefined,
+      status: "completed",
+      version: role.version + 1,
+      updatedAt: now,
+    });
+  }
+  if (contradiction !== null && resolved) {
     await ctx.db.patch(contradiction._id, {
       status: "resolved",
       resolvedAt: contradiction.resolvedAt ?? now,
     });
   }
+  await ctx.db.insert("auditEvents", {
+    sessionId: session._id,
+    ...(contradiction === null ? {} : { contradictionId: contradiction._id }),
+    type: `session.${finalStatus}`,
+    actorType: "system",
+    safeMetadata: {
+      reason:
+        contradiction === null
+          ? "no_contradiction"
+          : resolved
+            ? "contradiction_resolved"
+            : "unsafe_reconciliation",
+    },
+    createdAt: now,
+  });
   await writeDeterministicReport(ctx, session._id, now);
   return true;
 }
@@ -327,6 +403,11 @@ export const accept = mutation({
     canonicalDecision: decisionValidator,
     parseMethod: parseMethodValidator,
     confidence: v.optional(v.number()),
+    rationaleSummary: v.optional(v.string()),
+    modelLatencyMs: v.optional(v.number()),
+    modelUsed: v.optional(
+      v.union(v.literal("primary"), v.literal("fallback"), v.literal("none")),
+    ),
     rawTextRedacted: v.string(),
     now: v.number(),
   },
@@ -381,6 +462,10 @@ export const accept = mutation({
         inboundEventId: args.inboundEventId,
         rawTextRedacted: args.rawTextRedacted,
         parseMethod: args.parseMethod,
+        ...(args.modelLatencyMs === undefined
+          ? {}
+          : { modelLatencyMs: args.modelLatencyMs }),
+        ...(args.modelUsed === undefined ? {} : { modelUsed: args.modelUsed }),
         status: "rejected_stale",
         createdAt: args.now,
       });
@@ -395,6 +480,16 @@ export const accept = mutation({
         canonicalDecision: args.canonicalDecision,
         rawTextRedacted: args.rawTextRedacted,
         parseMethod: args.parseMethod,
+        ...(args.confidence === undefined
+          ? {}
+          : { confidence: args.confidence }),
+        ...(args.rationaleSummary === undefined
+          ? {}
+          : { rationaleSummary: args.rationaleSummary }),
+        ...(args.modelLatencyMs === undefined
+          ? {}
+          : { modelLatencyMs: args.modelLatencyMs }),
+        ...(args.modelUsed === undefined ? {} : { modelUsed: args.modelUsed }),
         status: "rejected_invalid",
         createdAt: args.now,
       });
@@ -417,6 +512,13 @@ export const accept = mutation({
       rawTextRedacted: args.rawTextRedacted,
       parseMethod: args.parseMethod,
       ...(args.confidence === undefined ? {} : { confidence: args.confidence }),
+      ...(args.rationaleSummary === undefined
+        ? {}
+        : { rationaleSummary: args.rationaleSummary }),
+      ...(args.modelLatencyMs === undefined
+        ? {}
+        : { modelLatencyMs: args.modelLatencyMs }),
+      ...(args.modelUsed === undefined ? {} : { modelUsed: args.modelUsed }),
       status: "applied",
       appliedAt: args.now,
       createdAt: args.now,
@@ -524,7 +626,7 @@ export const accept = mutation({
       now: args.now,
     });
     await maybeQueueReconciliation(ctx, session, args.now);
-    const sessionCompleted = await maybeComplete(ctx, session, args.now);
+    const sessionFinalized = await maybeFinalize(ctx, session, args.now);
     await ctx.db.insert("auditEvents", {
       sessionId: session._id,
       roleId: role._id,
@@ -545,7 +647,7 @@ export const accept = mutation({
       decisionId,
       contradictionDetected: contradictionId !== null,
       sessionId: session._id,
-      sessionCompleted,
+      sessionFinalized,
     };
   },
 });
@@ -557,6 +659,10 @@ export const requestClarification = mutation({
     injectId: v.id("injects"),
     expectedInjectVersion: v.number(),
     rawTextRedacted: v.string(),
+    modelLatencyMs: v.optional(v.number()),
+    modelUsed: v.optional(
+      v.union(v.literal("primary"), v.literal("fallback"), v.literal("none")),
+    ),
     now: v.number(),
   },
   handler: async (ctx, args) => {
@@ -606,6 +712,10 @@ export const requestClarification = mutation({
       inboundEventId: args.inboundEventId,
       rawTextRedacted: args.rawTextRedacted,
       parseMethod: "clarification",
+      ...(args.modelLatencyMs === undefined
+        ? {}
+        : { modelLatencyMs: args.modelLatencyMs }),
+      ...(args.modelUsed === undefined ? {} : { modelUsed: args.modelUsed }),
       status: "clarification_required",
       createdAt: args.now,
     });

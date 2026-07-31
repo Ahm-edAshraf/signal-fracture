@@ -148,6 +148,9 @@ Unique logical key: session + injectKey.
   rawTextRedacted: string,
   parseMethod: "command" | "phrase" | "gemini" | "clarification",
   confidence?: number,
+  rationaleSummary?: string,
+  modelLatencyMs?: number,
+  modelUsed?: "primary" | "fallback" | "none",
   status: "received" | "parsed" | "clarification_required" | "accepted" | "applied" | "rejected_stale" | "rejected_invalid" | "rejected_unauthorized",
   appliedAt?: number,
   createdAt: number
@@ -187,9 +190,11 @@ Unique logical key: session + contradictionKey.
   messageId: string,
   conversationIdHash: string,
   channel: string,
+  mediaCount?: number,
   sessionId?: Id<"sessions">,
   roleId?: Id<"roles">,
   status: "claimed" | "processed" | "failed",
+  duplicateCount?: number,
   outcomeRef?: string,
   receivedAt: number,
   processedAt?: number
@@ -262,6 +267,8 @@ Unique lookup by idempotency key.
   metrics: unknown,
   deterministicSummary: string,
   narrative?: string,
+  narrativeModelLatencyMs?: number,
+  narrativeModelUsed?: "primary" | "fallback",
   generatedAt: number
 }
 ```

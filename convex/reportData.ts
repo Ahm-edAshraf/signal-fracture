@@ -92,6 +92,9 @@ export async function writeDeterministicReport(
   const failedDeliveryCount = sessionDeliveries.filter(
     ({ status }) => status === "failed",
   ).length;
+  const modelLatencies = decisions.flatMap(({ modelLatencyMs }) =>
+    modelLatencyMs === undefined ? [] : [modelLatencyMs],
+  );
   const metrics = {
     coordinationScore: calculateCoordinationScore({
       contradictionCount: contradictions.length,
@@ -127,6 +130,17 @@ export async function writeDeterministicReport(
     deliveryLatencyMsByChannel: latencyByChannel,
     retryCount,
     failedDeliveryCount,
+    modelLatencyMs: {
+      count: modelLatencies.length,
+      average:
+        modelLatencies.length === 0
+          ? null
+          : Math.round(
+              modelLatencies.reduce((sum, value) => sum + value, 0) /
+                modelLatencies.length,
+            ),
+      maximum: modelLatencies.length === 0 ? null : Math.max(...modelLatencies),
+    },
     contradictionCount: contradictions.length,
     timeline: [
       ...sessionKnowledge.map((item) => ({

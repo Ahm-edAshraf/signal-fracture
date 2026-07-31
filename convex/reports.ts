@@ -36,6 +36,8 @@ export const getPublic = query({
       metrics: report.metrics,
       deterministicSummary: report.deterministicSummary,
       narrative: report.narrative ?? null,
+      narrativeModelLatencyMs: report.narrativeModelLatencyMs ?? null,
+      narrativeModelUsed: report.narrativeModelUsed ?? null,
       generatedAt: report.generatedAt,
     };
   },
@@ -67,6 +69,8 @@ export const attachNarrative = mutation({
     operatorSecret: v.string(),
     reportId: v.id("reports"),
     narrative: v.string(),
+    modelLatencyMs: v.number(),
+    modelUsed: v.union(v.literal("primary"), v.literal("fallback")),
   },
   handler: async (ctx, args) => {
     requireOperatorSecret(args.operatorSecret);
@@ -74,7 +78,11 @@ export const attachNarrative = mutation({
     if (report === null) return false;
     const narrative = args.narrative.trim();
     if (narrative.length === 0 || narrative.length > 900) return false;
-    await ctx.db.patch(report._id, { narrative });
+    await ctx.db.patch(report._id, {
+      narrative,
+      narrativeModelLatencyMs: Math.max(0, args.modelLatencyMs),
+      narrativeModelUsed: args.modelUsed,
+    });
     return true;
   },
 });

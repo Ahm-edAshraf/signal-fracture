@@ -8,9 +8,9 @@ Private addresses, connection identifiers, conversation identifiers, and sender 
 - Endpoint: authenticated `GET /v1/channels`
 - Result: 9 live provider rows
 - Required targets observed:
-  - Email / SES: receive, reply, send
-  - Telegram: receive, reply, send
-  - Discord: receive, reply, send
+  - Email / SES: `initiate`, `media`, `receive`, `reply`, `send`
+  - Telegram: `edit_inbound`, `group_visibility`, `interactions`, `media`, `reactions`, `receive`, `reply`, `send`
+  - Discord: `group_visibility`, `initiate`, `interactions`, `media`, `reactions`, `receive`, `reply`, `see_bots`, `send`
 - Credential values exposed: none
 
 ## Installed SDK audit — PASS
@@ -99,21 +99,25 @@ Private addresses, connection identifiers, conversation identifiers, and sender 
 - Production Convex schema and functions deployed successfully.
 - Persistent Railway worker: `https://agent-production-32ad.up.railway.app`
 - Railway deployment status: SUCCESS; one running service replica.
-- Current worker deployment `706569d4-6be5-4c80-9a8c-fdc5dc6359e2`: SUCCESS.
-- Current web deployment `dpl_HaNqKhJmTndThfKjvrfwD85DNsLD`: READY and aliased to the public URL.
+- Current worker deployment `df21bc93-e7a6-406d-a9d3-5de8350c36c5`: SUCCESS.
+- Current web deployment `dpl_nitGDsHxEujnivMRwtky325q2iA6`: READY and aliased to the public URL.
 - `/healthz`: `{"status":"ok"}`
 - `/readyz`: `{"status":"ready","channels":["email","telegram","discord"]}`
 - The local consumer was stopped before production startup so only one worker dispatches events.
 - Public dashboard API returns only aliases, synthetic facts, canonical decisions, delivery metadata, truncated event references, and aggregate reliability values.
 - Guarded operator login rejects an incorrect secret with HTTP 401 and issues an HttpOnly, SameSite=Strict cookie after valid authentication.
 - Playwright production checks: 4/4 pass (qualified channels, operator auth boundary, report-export auth boundary, public payload redaction).
-- Playwright local checks: 3/3 pass against the synchronized Convex development deployment; production checks also pass 3/3 with the explicit public base URL.
 - Opt-in live gateway qualification suite: 2/2 pass; the suite performs capability discovery only and sends no participant message.
 - Preliminary privacy-reviewed screenshots: `docs/screenshots/dashboard-standby.png` and `docs/screenshots/operator-login.png`.
-- Current root gate: 39/39 unit tests and 12/12 Convex integration tests pass, followed by package, worker, and seven-route Next.js production builds.
+- Current root gate: 52/52 unit tests and 14/14 Convex integration tests pass, followed by package, worker, and seven-route Next.js production builds.
 - Worker recovery regression tests verify that a failed initial checkpoint write retains the original gateway baseline, transient stale-claim and deadline-sweep errors do not terminate the worker, and a successful provider send is not repeated while its idempotent database acknowledgement retries.
+- Inbound recovery tests verify that a `claimed` event resumes after a crash window, a processed event produces no repeated consequence across 100 replays, and optional button interactions enter through the same durable claim before the deterministic decision mutation.
+- Capability adapter tests verify text retention, supported rich blocks, button removal without `interactions`, media removal without `media`, and best-effort reaction gating. These optional affordances are code-tested but not yet live-smoke-tested.
+- Provider-failure worker tests cover Email, Telegram, and Discord with the same bounded retry path; these are simulated failures, not claims that a live provider outage was induced.
 - Deterministic deadline tests verify F1 timeout advancement, reset-required later misses, and operator-pause clock freezing.
 - Knowledge evidence remains empty after provider acceptance alone and is recorded only after the participant replies; the canonical test then reconstructs Control's stale `OPEN` fact and later confirmed `SEALED` fact separately.
+- Branch tests verify safe completion without a contradiction, canonical resolved completion, and explicit failure after a fully answered unsafe reconciliation; every terminal path closes or cancels injects and clears active roles.
+- Model-boundary tests record classifier and narrator latency/model selection while exact commands and `ABORT` still bypass Gemini and total outage returns explicit deterministic choices.
 
 ## Fresh public clone — PASS
 

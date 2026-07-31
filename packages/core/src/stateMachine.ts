@@ -1,10 +1,10 @@
 import type { InjectStatus, SessionStatus } from "./domain";
 
 const sessionTransitions: Record<SessionStatus, readonly SessionStatus[]> = {
-  draft: ["ready"],
+  draft: ["ready", "aborted"],
   ready: ["running", "aborted"],
   running: ["paused", "resolving", "completed", "aborted", "failed"],
-  paused: ["running", "aborted", "failed"],
+  paused: ["running", "resolving", "aborted", "failed"],
   resolving: ["paused", "completed", "aborted", "failed"],
   completed: [],
   aborted: [],
@@ -13,7 +13,7 @@ const sessionTransitions: Record<SessionStatus, readonly SessionStatus[]> = {
 
 const injectTransitions: Record<InjectStatus, readonly InjectStatus[]> = {
   planned: ["queued", "cancelled"],
-  queued: ["sent", "retrying", "failed", "cancelled"],
+  queued: ["sent", "open", "retrying", "failed", "cancelled"],
   sent: ["delivered", "open", "retrying", "failed", "cancelled"],
   delivered: ["open", "cancelled"],
   open: ["answered", "expired", "cancelled"],

@@ -166,6 +166,11 @@ export default defineSchema({
       v.literal("clarification"),
     ),
     confidence: v.optional(v.number()),
+    rationaleSummary: v.optional(v.string()),
+    modelLatencyMs: v.optional(v.number()),
+    modelUsed: v.optional(
+      v.union(v.literal("primary"), v.literal("fallback"), v.literal("none")),
+    ),
     status: v.union(
       v.literal("received"),
       v.literal("parsed"),
@@ -212,6 +217,7 @@ export default defineSchema({
     messageId: v.string(),
     conversationIdHash: v.string(),
     channel: v.string(),
+    mediaCount: v.optional(v.number()),
     sessionId: v.optional(v.id("sessions")),
     roleId: v.optional(v.id("roles")),
     status: v.union(
@@ -296,6 +302,10 @@ export default defineSchema({
     metrics: v.any(),
     deterministicSummary: v.string(),
     narrative: v.optional(v.string()),
+    narrativeModelLatencyMs: v.optional(v.number()),
+    narrativeModelUsed: v.optional(
+      v.union(v.literal("primary"), v.literal("fallback")),
+    ),
     generatedAt: v.number(),
   }).index("by_session", ["sessionId"]),
 });

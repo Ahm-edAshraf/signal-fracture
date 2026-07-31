@@ -48,6 +48,26 @@ describe("Gemini decision boundary", () => {
     );
   });
 
+  it.each([
+    ["use the shortest route through bay three", "ROUTE_BAY_3"],
+    ["hold escalation until confirmation arrives", "WAIT_FOR_CONFIRMATION"],
+  ])("classifies canonical role wording for %s", async (text, decision) => {
+    const generate = vi
+      .fn<GenerateStructured>()
+      .mockResolvedValue(response({ decision }));
+    const classifier = new GeminiDecisionClassifier(config, generate);
+    await expect(
+      classifier.classify({
+        participantText: text,
+        allowedDecisions: [decision],
+      }),
+    ).resolves.toMatchObject({
+      status: "accepted",
+      classification: { decision },
+    });
+    expect(generate.mock.calls[0]?.[0].prompt).toContain(text);
+  });
+
   it("requests clarification below the confidence threshold", async () => {
     const classifier = new GeminiDecisionClassifier(
       config,

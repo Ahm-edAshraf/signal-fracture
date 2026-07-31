@@ -1,6 +1,7 @@
 import {
   connectConfiguredChannels,
   createCaspianClient,
+  parseChannelCapabilities,
 } from "@signal-fracture/caspian";
 import { readAgentEnvironment } from "./env";
 import { registerSharedHandler } from "./registerSharedHandler";
@@ -52,7 +53,26 @@ export async function createAgentRuntime() {
       ? {}
       : { discordBotToken: env.DISCORD_BOT_TOKEN }),
   });
+  const channelCapabilities = await client
+    .channels()
+    .then(parseChannelCapabilities)
+    .catch(() => new Map<string, Set<string>>());
   await state.recordChannelHealth(channels).catch(() => undefined);
-  registerSharedHandler(client, state, classifier, narrator);
-  return { channels, classifier, client, env, narrator, state };
+  registerSharedHandler(
+    client,
+    state,
+    classifier,
+    narrator,
+    channelCapabilities,
+    channels,
+  );
+  return {
+    channelCapabilities,
+    channels,
+    classifier,
+    client,
+    env,
+    narrator,
+    state,
+  };
 }

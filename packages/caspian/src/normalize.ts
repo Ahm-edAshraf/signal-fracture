@@ -11,6 +11,7 @@ type NormalizableMessage = Pick<
   | "sender"
   | "subject"
   | "text"
+  | "media"
 >;
 
 function stableJson(value: unknown): string {
@@ -39,6 +40,7 @@ export function normalizeCaspianMessage(
     senderFingerprint: fingerprint(message.sender),
     subject: message.subject,
     text: message.text ?? "",
+    mediaCount: message.media.length,
     receivedAt,
   };
 }

@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { CommClient } from "caspian-sdk";
 import type { AgentState } from "./state";
 import { logPublic } from "./publicLog";
+import { capabilityGatedPayload } from "./presentation";
+import type { ChannelCapabilities } from "@signal-fracture/caspian";
 
 type OutboxClient = Pick<CommClient, "sendMessage">;
 type OutboxState = Pick<
@@ -54,6 +56,7 @@ export async function runOutboxWorker(input: {
   state: OutboxState;
   signal: AbortSignal;
   maxAttempts: number;
+  channelCapabilities?: ChannelCapabilities;
 }): Promise<void> {
   const workerId = randomUUID();
   let stateBackoffMs = IDLE_POLL_MS;
@@ -92,10 +95,17 @@ export async function runOutboxWorker(input: {
     const startedAt = Date.now();
     let providerMessageIdValue: string | undefined;
     try {
+      const presented = capabilityGatedPayload(
+        delivery.channel,
+        delivery.payload,
+        input.channelCapabilities ?? new Map(),
+      );
       const result = await input.client.sendMessage(
         delivery.conversationId,
-        delivery.payload.text,
-        delivery.payload.html ?? null,
+        presented.text,
+        presented.html,
+        presented.blocks,
+        presented.media,
       );
       providerMessageIdValue = providerMessageId(result);
     } catch (error) {

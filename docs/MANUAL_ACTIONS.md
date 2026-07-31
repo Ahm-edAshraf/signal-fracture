@@ -4,7 +4,7 @@ All required credentials and CLI authentications were available during the 31 Ju
 
 ## Later submission-only actions
 
-- Confirm the official deadline and optional interaction-handler policy with organizers.
+- Confirm the optional interaction-handler policy with organizers; the deadline and three-minute video limit are now verified from the official rules.
 - Record two video takes after the live three-channel rehearsal is green.
 - Submit the final Devpost entry after all evidence links are public.
 
@@ -25,6 +25,7 @@ All required credentials and CLI authentications were available during the 31 Ju
    - Field: `PASSAGE BLOCKED`
    - Control: `REROUTE BAY 5`
    - Director: `ESCALATE NOW`
+     Use these text choices even if a channel also renders an optional button; text is the qualification-critical path.
 7. Keep <https://signal-fracture.vercel.app> visible and confirm the session completes with one resolved `C-BAY3` contradiction and an after-action report.
 8. In the operator console, select **Export report** and privacy-review the downloaded JSON before using it as submission evidence.
 

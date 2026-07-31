@@ -49,6 +49,8 @@ type DashboardState = {
     decision: string | null;
     status: string;
     parseMethod: string;
+    modelLatencyMs: number | null;
+    modelUsed: string | null;
     at: number;
   }[];
   contradictions?: {
@@ -72,6 +74,7 @@ type DashboardState = {
   inboundEvents?: {
     eventRef: string;
     channel: string;
+    mediaCount: number;
     status: string;
     duplicateCount: number;
     receivedAt: number;
@@ -81,6 +84,8 @@ type DashboardState = {
     metrics: Record<string, unknown>;
     deterministicSummary: string;
     narrative: string | null;
+    narrativeModelLatencyMs: number | null;
+    narrativeModelUsed: string | null;
     generatedAt: number;
   };
   reliability?: {
@@ -340,7 +345,7 @@ function Timeline({ state }: { state: DashboardState }) {
           at: item.at,
           kind: "decision" as const,
           title: item.decision ? formatKey(item.decision) : "Clarification",
-          detail: `${item.roleKey} · ${item.status} · ${item.parseMethod}`,
+          detail: `${item.roleKey} · ${item.status} · ${item.parseMethod}${item.modelLatencyMs === null ? "" : ` · ${item.modelLatencyMs} ms ${item.modelUsed ?? "model"}`}`,
           ...(item.status === "applied" ? { tone: "ok" as const } : {}),
         })),
         ...(state.contradictions ?? []).map((item) => ({
@@ -405,6 +410,10 @@ function ReportPanel({ state }: { state: DashboardState }) {
     typeof metrics.coordinationScore === "number"
       ? metrics.coordinationScore
       : null;
+  const modelLatency = metrics.modelLatencyMs as
+    { average?: unknown } | undefined;
+  const modelAverage =
+    typeof modelLatency?.average === "number" ? modelLatency.average : null;
   const cards = [
     [
       "Coordination score",
@@ -419,6 +428,13 @@ function ReportPanel({ state }: { state: DashboardState }) {
       relativeMs(metrics.contradictionResolutionMs as number | null),
     ],
     ["Retries", String(reliability?.retryCount ?? 0)],
+    ["Model average", relativeMs(modelAverage)],
+    [
+      "Narrative model",
+      report?.narrativeModelLatencyMs == null
+        ? "—"
+        : `${relativeMs(report.narrativeModelLatencyMs)} · ${report.narrativeModelUsed ?? "model"}`,
+    ],
     ["Duplicate effects", "0"],
   ];
   return (
@@ -470,7 +486,7 @@ export function DashboardClient() {
 
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 2_000);
+    const timer = window.setInterval(() => void refresh(), 750);
     return () => window.clearInterval(timer);
   }, [refresh]);
 

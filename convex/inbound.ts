@@ -10,6 +10,7 @@ export const claim = mutation({
     connectionId: v.string(),
     channel: v.string(),
     senderFingerprint: v.string(),
+    mediaCount: v.number(),
     receivedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -22,8 +23,17 @@ export const claim = mutation({
       await ctx.db.patch(existing._id, {
         duplicateCount: (existing.duplicateCount ?? 0) + 1,
       });
+      if (existing.status === "claimed" || existing.status === "failed") {
+        return {
+          duplicate: false,
+          recovered: true,
+          rateLimited: false,
+          outcomeRef: existing.outcomeRef ?? null,
+        };
+      }
       return {
         duplicate: true,
+        recovered: false,
         rateLimited: false,
         outcomeRef: existing.outcomeRef ?? null,
       };
@@ -44,6 +54,7 @@ export const claim = mutation({
       messageId: args.messageId,
       conversationIdHash: args.conversationIdHash,
       channel: args.channel,
+      mediaCount: args.mediaCount,
       status: rateLimited ? "processed" : "claimed",
       ...(rateLimited ? { outcomeRef: "rate_limited" } : {}),
       receivedAt: args.receivedAt,
@@ -53,6 +64,7 @@ export const claim = mutation({
     if (rateLimited) {
       return {
         duplicate: false,
+        recovered: false,
         rateLimited: true,
         outcomeRef: "rate_limited",
       };
@@ -83,7 +95,12 @@ export const claim = mutation({
       });
     }
 
-    return { duplicate: false, rateLimited: false, outcomeRef: null };
+    return {
+      duplicate: false,
+      recovered: false,
+      rateLimited: false,
+      outcomeRef: null,
+    };
   },
 });
 

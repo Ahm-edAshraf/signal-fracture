@@ -16,6 +16,7 @@ describe("Caspian inbound normalization", () => {
         sender: { username: "private-participant", numericId: 42 },
         subject: null,
         text: null,
+        media: [{ name: "private-photo.png", mimeType: "image/png" }],
       },
       1_234,
     );
@@ -32,10 +33,12 @@ describe("Caspian inbound normalization", () => {
       }),
       subject: null,
       text: "",
+      mediaCount: 1,
       receivedAt: 1_234,
     });
     expect(envelope.senderFingerprint).toMatch(/^[a-f0-9]{64}$/);
     expect(JSON.stringify(envelope)).not.toContain("private-participant");
+    expect(JSON.stringify(envelope)).not.toContain("private-photo.png");
   });
 
   it("produces stable hashes independent of object key order", () => {

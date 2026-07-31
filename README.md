@@ -49,6 +49,7 @@ Caspian is the shared communication plane, not a notification add-on:
 - Persisted conversation IDs let `client.sendMessage(...)` deliver later causal injects.
 - A durable `dispatchPending(savedSeq)` loop recovers after restarts.
 - Caspian message IDs feed Convex idempotency and the audit timeline.
+- Optional blocks, buttons, reactions, and media are enabled only when the authenticated channel catalog advertises the matching capability; text remains complete on its own.
 
 Replacing Caspian with three unrelated bots would remove the one-agent, one-world architecture being tested.
 
@@ -87,7 +88,7 @@ Gemini cannot create facts, select transitions, assign roles, declare delivery s
 
 ## Reliability
 
-- Atomic inbound message claim before business logic
+- Atomic inbound message or interaction claim before business logic; a claimed-but-unfinished replay resumes safely
 - Expected inject versions for stale/concurrent response rejection
 - Stable outbound idempotency keys
 - Atomic outbox claim with bounded retry
@@ -95,6 +96,7 @@ Gemini cannot create facts, select transitions, assign roles, declare delivery s
 - Deterministic per-inject deadlines with an audited safety pause on a miss
 - Monotonic Caspian checkpoint in Convex
 - Replay-safe restart behavior
+- Zero repeated consequences across 100 post-completion event replays
 - Signed, role-bound, expiring join codes
 - Role-private `STATUS` output
 - Email quote stripping before parsing
@@ -104,6 +106,8 @@ Gemini cannot create facts, select transitions, assign roles, declare delivery s
 - Paused sessions hold outbox claims and participant decisions durably, while operator pauses freeze active deadlines
 - Role knowledge is recorded only when a participant reply confirms receipt of that inject
 - Deterministic 0–100 coordination score from contradictions, resolution time, retries, and delivery failures
+- Recorded Gemini classification and report-narration latency without exposing prompts or participant text
+- Safe, resolved-conflict, and unsafe-reconciliation branches all end deterministically with no stranded active inject
 - Authenticated JSON export of the completed who-knew-what-when report
 
 ## Privacy and safety
@@ -144,7 +148,7 @@ JOIN ASTERIA CONTROL <signed-code>
 JOIN ASTERIA DIRECTOR <signed-code>
 ```
 
-All decisions remain available as text even if optional rich interactions are added later.
+All decisions remain available as text. Capability-supported channels may also render optional buttons, but the qualification and demo do not depend on them.
 
 ## Tests
 
@@ -185,7 +189,7 @@ docs             Decisions, evidence, operations, and submission material
 - One fixed fictional scenario
 - One active worker replica
 - Text is the only qualification-critical interaction path
-- Rich interactions and media are not yet live-verified
+- Rich interactions, reactions, and media are capability-gated and code-tested but not yet live-verified
 - A live three-participant canonical rehearsal is still required before submission readiness
 - Hosted Caspian gateway behavior remains an external dependency
 - This prototype is not for real emergency or operational use

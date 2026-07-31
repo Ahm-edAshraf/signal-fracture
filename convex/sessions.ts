@@ -4,6 +4,7 @@ import { mutation, query } from "./_generated/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { requireOperatorSecret } from "./auth";
 import {
+  blocksForInject,
   roleDefinitions,
   seedScenarioState,
   type CanonicalRole,
@@ -212,6 +213,7 @@ export const start = mutation({
         channel: endpoint.channel,
         payload: {
           text: inject.exerciseText,
+          blocks: blocksForInject(inject),
           ...(inject.emailSubject === undefined
             ? {}
             : {

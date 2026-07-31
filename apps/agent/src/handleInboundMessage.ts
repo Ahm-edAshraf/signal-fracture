@@ -17,6 +17,10 @@ import {
   type DecisionKey,
 } from "@signal-fracture/core";
 import type { Id } from "../../../convex/_generated/dataModel";
+import {
+  hasChannelCapability,
+  type ChannelCapabilities,
+} from "@signal-fracture/caspian";
 
 const ALL_DECISIONS: readonly DecisionKey[] = [
   "SEAL_BAY_3",
@@ -63,6 +67,7 @@ export async function handleInboundMessage(
   state: AgentState,
   classifier: GeminiDecisionClassifier,
   narrator: GeminiReportNarrator,
+  channelCapabilities: ChannelCapabilities = new Map(),
 ): Promise<void> {
   const envelope = normalizeCaspianMessage(message);
   if (envelope.channel === "email") {
@@ -74,6 +79,11 @@ export async function handleInboundMessage(
   });
 
   if (claim.duplicate || claim.rateLimited) return;
+  if (
+    hasChannelCapability(channelCapabilities, envelope.channel, "reactions")
+  ) {
+    await message.react("👀").catch(() => undefined);
+  }
 
   const command = parseParticipantCommand(envelope.text);
   let body: string;
@@ -171,17 +181,19 @@ export async function handleInboundMessage(
             ? `Decision recorded: ${deterministic.decision.replaceAll("_", " ")}.`
             : "That decision prompt is already closed. Send STATUS for your current role state.";
         outcome = `decision.${result.outcome}`;
-        if (result.outcome === "applied" && result.sessionCompleted) {
+        if (result.outcome === "applied" && result.sessionFinalized) {
           completedSessionId = result.sessionId;
         }
       } else if (anyKnownDecision !== null) {
         body = `That decision prompt is already closed. Your current valid choices are: ${allowed.join(", ")}.`;
         outcome = "decision.stale_choice";
       } else {
+        const classificationStartedAt = Date.now();
         const classification = await classifier.classify({
           participantText: envelope.text,
           allowedDecisions: allowed,
         });
+        const modelLatencyMs = Date.now() - classificationStartedAt;
         if (classification.status === "accepted") {
           const decision = classification.classification
             .decision as DecisionKey;
@@ -193,6 +205,14 @@ export async function handleInboundMessage(
             canonicalDecision: decision,
             parseMethod: "gemini",
             confidence: classification.classification.confidence,
+            ...(classification.classification.rationaleSummary === null
+              ? {}
+              : {
+                  rationaleSummary:
+                    classification.classification.rationaleSummary,
+                }),
+            modelLatencyMs,
+            modelUsed: classification.model,
             rawTextRedacted: redactedText(envelope.text),
           });
           body =
@@ -200,7 +220,7 @@ export async function handleInboundMessage(
               ? `Decision recorded: ${decision.replaceAll("_", " ")}.`
               : "That decision prompt is already closed. Send STATUS for your current role state.";
           outcome = `decision.${result.outcome}`;
-          if (result.outcome === "applied" && result.sessionCompleted) {
+          if (result.outcome === "applied" && result.sessionFinalized) {
             completedSessionId = result.sessionId;
           }
         } else {
@@ -210,6 +230,11 @@ export async function handleInboundMessage(
             injectId: prompt.injectId,
             expectedInjectVersion: prompt.version,
             rawTextRedacted: redactedText(envelope.text),
+            modelLatencyMs,
+            modelUsed:
+              classification.status === "unavailable"
+                ? "none"
+                : classification.model,
           });
           const showOptions =
             classification.status === "unavailable" ||

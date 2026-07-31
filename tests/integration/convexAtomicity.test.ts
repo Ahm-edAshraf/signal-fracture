@@ -3,6 +3,7 @@
 import { convexTest } from "convex-test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import schema from "../../convex/schema";
 
 const modules = import.meta.glob("../../convex/**/*.{ts,js}");
@@ -43,16 +44,28 @@ describe("Convex atomic state", () => {
       connectionId: "connection-1",
       channel: "email",
       senderFingerprint: "sender-hash",
+      mediaCount: 0,
       receivedAt: 100,
     };
     await expect(t.mutation(api.inbound.claim, input)).resolves.toMatchObject({
       duplicate: false,
     });
     await expect(t.mutation(api.inbound.claim, input)).resolves.toMatchObject({
-      duplicate: true,
+      duplicate: false,
+      recovered: true,
     });
+    await t.mutation(api.inbound.complete, {
+      messageId: input.messageId,
+      outcomeRef: "test.complete",
+      processedAt: 101,
+    });
+    for (let index = 0; index < 100; index += 1) {
+      await expect(t.mutation(api.inbound.claim, input)).resolves.toMatchObject(
+        { duplicate: true, recovered: false },
+      );
+    }
     expect(await t.query(api.inbound.stats)).toMatchObject({
-      duplicateCount: 1,
+      duplicateCount: 101,
     });
     expect(await t.mutation(api.checkpoint.save, { lastSeq: 20 })).toBe(20);
     expect(await t.mutation(api.checkpoint.save, { lastSeq: 10 })).toBe(20);
@@ -70,6 +83,7 @@ describe("Convex atomic state", () => {
         connectionId: "connection",
         channel: "telegram",
         senderFingerprint: "sender-hash",
+        mediaCount: 0,
         receivedAt: 1_000 + index,
       });
       expect(result.rateLimited).toBe(index >= 20);
@@ -479,7 +493,11 @@ describe("Convex atomic state", () => {
       injectId: directorPrompt.injectId,
       expectedInjectVersion: directorPrompt.version,
       canonicalDecision: "WAIT_FOR_CONFIRMATION",
-      parseMethod: "command",
+      parseMethod: "gemini",
+      confidence: 0.94,
+      rationaleSummary: "Waiting for confirmation before escalation.",
+      modelLatencyMs: 275,
+      modelUsed: "fallback",
       rawTextRedacted: "WAIT FOR CONFIRMATION",
       now: 3_000,
     });
@@ -537,7 +555,7 @@ describe("Convex atomic state", () => {
     expect(completion).toMatchObject({
       outcome: "applied",
       sessionId,
-      sessionCompleted: true,
+      sessionFinalized: true,
     });
 
     const final = await t.run(async (ctx) => {
@@ -552,11 +570,27 @@ describe("Convex atomic state", () => {
           q.eq("sessionId", sessionId),
         )
         .collect();
-      return { session, contradictions, facts };
+      const [roles, injects] = await Promise.all([
+        ctx.db
+          .query("roles")
+          .withIndex("by_session_role", (q) => q.eq("sessionId", sessionId))
+          .collect(),
+        ctx.db
+          .query("injects")
+          .withIndex("by_session_inject_key", (q) =>
+            q.eq("sessionId", sessionId),
+          )
+          .collect(),
+      ]);
+      return { session, contradictions, facts, roles, injects };
     });
     expect(final.session?.status).toBe("completed");
     expect(final.contradictions).toHaveLength(1);
     expect(final.contradictions[0]?.status).toBe("resolved");
+    expect(final.roles.every(({ status }) => status === "completed")).toBe(
+      true,
+    );
+    expect(final.injects.every(({ status }) => status === "closed")).toBe(true);
     expect(
       final.facts
         .filter(({ factKey }) => factKey === "crew7.route")
@@ -578,6 +612,7 @@ describe("Convex atomic state", () => {
         fieldToControlConflictMs: 1_000,
         contradictionDetectionMs: 0,
         contradictionResolutionMs: 4_000,
+        modelLatencyMs: { count: 1, average: 275, maximum: 275 },
       },
     });
     const confirmedKnowledge = await t.run(async (ctx) => {
@@ -624,6 +659,8 @@ describe("Convex atomic state", () => {
         operatorSecret: "invalid-operator-secret",
         reportId: narrationInput.reportId,
         narrative: "Should not be stored.",
+        modelLatencyMs: 10,
+        modelUsed: "primary",
       }),
     ).rejects.toThrow();
     await expect(
@@ -632,6 +669,8 @@ describe("Convex atomic state", () => {
         reportId: narrationInput.reportId,
         narrative:
           "The deterministic record shows one resolved Bay 3 contradiction.",
+        modelLatencyMs: 640,
+        modelUsed: "fallback",
       }),
     ).resolves.toBe(true);
     expect(
@@ -639,6 +678,8 @@ describe("Convex atomic state", () => {
     ).toMatchObject({
       narrative:
         "The deterministic record shows one resolved Bay 3 contradiction.",
+      narrativeModelLatencyMs: 640,
+      narrativeModelUsed: "fallback",
     });
     const dashboard = await t.query(api.dashboard.publicState, {
       publicCode: "ASTERIA",
@@ -673,6 +714,334 @@ describe("Convex atomic state", () => {
         now: 7_000,
       }),
     ).resolves.toMatchObject({ outcome: "duplicate" });
+  });
+
+  it("finalizes an unsafe reconciliation as failed with an unresolved report", async () => {
+    const t = convexTest(schema, modules);
+    const context = await t.run(async (ctx) => {
+      const sessionId = await ctx.db.insert("sessions", {
+        scenarioId: "asteria-bay3-v1",
+        publicCode: "UNSAFE",
+        status: "resolving",
+        version: 1,
+        demoTenant: "unsafe-branch",
+        startedAt: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      const roleIds = {} as Record<
+        "field" | "control" | "director",
+        Id<"roles">
+      >;
+      for (const [roleKey, displayName, publicAlias] of [
+        ["field", "Field Engineer", "FE-1"],
+        ["control", "Mission Control", "MC-1"],
+        ["director", "Operations Director", "OD-1"],
+      ] as const) {
+        roleIds[roleKey] = await ctx.db.insert("roles", {
+          sessionId,
+          roleKey,
+          displayName,
+          publicAlias,
+          joinCodeHash: `${roleKey}-hash`,
+          joinCodeExpiresAt: 10_000,
+          status: "active",
+          version: 1,
+          createdAt: 0,
+          updatedAt: 0,
+        });
+      }
+      for (const [factKey, value] of [
+        ["bay3.access", "SEALED"],
+        ["crew7.route", "BAY_3"],
+      ] as const) {
+        await ctx.db.insert("worldFacts", {
+          sessionId,
+          factKey,
+          value,
+          version: 2,
+          sourceEventId: `source:${factKey}`,
+          validFrom: 100,
+          createdAt: 100,
+        });
+      }
+      const injectIds = {} as Record<"RF1" | "RC1" | "RD1", Id<"injects">>;
+      for (const [injectKey, roleKey, status, allowedDecisions] of [
+        ["RF1", "field", "answered", ["PASSAGE_BLOCKED", "PASSAGE_AVAILABLE"]],
+        ["RC1", "control", "answered", ["REROUTE_BAY_5", "REQUEST_OVERRIDE"]],
+        ["RD1", "director", "open", ["ESCALATE_NOW", "HOLD"]],
+      ] as const) {
+        injectIds[injectKey] = await ctx.db.insert("injects", {
+          sessionId,
+          injectKey,
+          roleId: roleIds[roleKey],
+          status,
+          exerciseText: `synthetic ${injectKey}`,
+          allowedDecisions: [...allowedDecisions],
+          prerequisiteKeys: ["C-BAY3"],
+          opensAt: 100,
+          clarificationCount: 0,
+          version: 2,
+          createdAt: 0,
+          updatedAt: 100,
+        });
+      }
+      await ctx.db.patch(roleIds.director, {
+        currentInjectId: injectIds.RD1,
+      });
+      await ctx.db.insert("endpoints", {
+        sessionId,
+        roleId: roleIds.director,
+        channel: "email",
+        conversationId: "unsafe-director",
+        connectionId: "email-connection",
+        senderFingerprint: "director-fingerprint",
+        active: true,
+        joinedAt: 0,
+        lastSeenAt: 0,
+      });
+      const firstDecisionId = await ctx.db.insert("decisions", {
+        sessionId,
+        roleId: roleIds.field,
+        injectId: injectIds.RF1,
+        inboundEventId: "unsafe-field",
+        canonicalDecision: "PASSAGE_AVAILABLE",
+        rawTextRedacted: "[redacted]",
+        parseMethod: "command",
+        status: "applied",
+        appliedAt: 200,
+        createdAt: 200,
+      });
+      const secondDecisionId = await ctx.db.insert("decisions", {
+        sessionId,
+        roleId: roleIds.control,
+        injectId: injectIds.RC1,
+        inboundEventId: "unsafe-control",
+        canonicalDecision: "REQUEST_OVERRIDE",
+        rawTextRedacted: "[redacted]",
+        parseMethod: "command",
+        status: "applied",
+        appliedAt: 300,
+        createdAt: 300,
+      });
+      await ctx.db.insert("contradictions", {
+        sessionId,
+        contradictionKey: "C-BAY3",
+        type: "ACTION_VS_WORLD_STATE",
+        status: "notified",
+        factRefs: ["bay3.access"],
+        decisionRefs: [firstDecisionId, secondDecisionId],
+        detectedAt: 150,
+        notifiedAt: 160,
+        details: {},
+      });
+      return { sessionId, directorInjectId: injectIds.RD1 };
+    });
+
+    await expect(
+      t.mutation(api.decisions.accept, {
+        inboundEventId: "unsafe-director",
+        conversationId: "unsafe-director",
+        injectId: context.directorInjectId,
+        expectedInjectVersion: 2,
+        canonicalDecision: "HOLD",
+        parseMethod: "command",
+        rawTextRedacted: "HOLD",
+        now: 400,
+      }),
+    ).resolves.toMatchObject({ outcome: "applied", sessionFinalized: true });
+
+    const evidence = await t.run(async (ctx) => ({
+      session: await ctx.db.get(context.sessionId),
+      roles: await ctx.db
+        .query("roles")
+        .withIndex("by_session_role", (q) =>
+          q.eq("sessionId", context.sessionId),
+        )
+        .collect(),
+      injects: await ctx.db
+        .query("injects")
+        .withIndex("by_session_inject_key", (q) =>
+          q.eq("sessionId", context.sessionId),
+        )
+        .collect(),
+      contradiction: await ctx.db
+        .query("contradictions")
+        .withIndex("by_session_key", (q) =>
+          q.eq("sessionId", context.sessionId).eq("contradictionKey", "C-BAY3"),
+        )
+        .unique(),
+    }));
+    expect(evidence.session?.status).toBe("failed");
+    expect(evidence.roles.every(({ status }) => status === "completed")).toBe(
+      true,
+    );
+    expect(evidence.injects.every(({ status }) => status === "closed")).toBe(
+      true,
+    );
+    expect(evidence.contradiction?.status).toBe("notified");
+    await expect(
+      t.query(api.reports.getPublic, { publicCode: "UNSAFE" }),
+    ).resolves.toMatchObject({
+      status: "failed",
+      metrics: { coordinationScore: 65, contradictionCount: 1 },
+    });
+  });
+
+  it("completes a safe no-conflict branch and cancels unused injects", async () => {
+    const t = convexTest(schema, modules);
+    const sessionId = await t.mutation(api.sessions.createDemo, {
+      operatorSecret,
+      demoTenant: "safe-branch",
+      publicCode: "SAFE",
+      roleCodes: roleCodes(),
+      now: 0,
+    });
+    const context = await t.run(async (ctx) => {
+      const roles = await ctx.db
+        .query("roles")
+        .withIndex("by_session_role", (q) => q.eq("sessionId", sessionId))
+        .collect();
+      const injects = await ctx.db
+        .query("injects")
+        .withIndex("by_session_inject_key", (q) => q.eq("sessionId", sessionId))
+        .collect();
+      const roleByKey = new Map(roles.map((role) => [role.roleKey, role]));
+      const injectByKey = new Map(
+        injects.map((inject) => [inject.injectKey, inject]),
+      );
+      const field = roleByKey.get("field");
+      const control = roleByKey.get("control");
+      const director = roleByKey.get("director");
+      const fieldInject = injectByKey.get("F1");
+      const controlInject = injectByKey.get("C1");
+      const directorInject = injectByKey.get("D1");
+      if (
+        field === undefined ||
+        control === undefined ||
+        director === undefined ||
+        fieldInject === undefined ||
+        controlInject === undefined ||
+        directorInject === undefined
+      ) {
+        throw new Error("Missing safe-branch fixtures");
+      }
+      await ctx.db.patch(sessionId, {
+        status: "running",
+        startedAt: 10,
+        version: 2,
+        updatedAt: 10,
+      });
+      for (const role of roles) {
+        await ctx.db.patch(role._id, {
+          status: "active",
+          ...(role.roleKey === "director"
+            ? { currentInjectId: directorInject._id }
+            : {}),
+          version: role.version + 1,
+          updatedAt: 10,
+        });
+      }
+      for (const inject of [fieldInject, controlInject]) {
+        await ctx.db.patch(inject._id, {
+          status: "answered",
+          version: inject.version + 1,
+          updatedAt: 20,
+        });
+      }
+      await ctx.db.patch(directorInject._id, {
+        status: "open",
+        opensAt: 20,
+        version: directorInject.version + 1,
+        updatedAt: 20,
+      });
+      await ctx.db.insert("endpoints", {
+        sessionId,
+        roleId: director._id,
+        channel: "email",
+        conversationId: "safe-director",
+        connectionId: "email-connection",
+        senderFingerprint: "director-fingerprint",
+        active: true,
+        joinedAt: 10,
+        lastSeenAt: 10,
+      });
+      await ctx.db.insert("decisions", {
+        sessionId,
+        roleId: field._id,
+        injectId: fieldInject._id,
+        inboundEventId: "safe-field",
+        canonicalDecision: "WAIT",
+        rawTextRedacted: "WAIT",
+        parseMethod: "command",
+        status: "applied",
+        appliedAt: 20,
+        createdAt: 20,
+      });
+      await ctx.db.insert("decisions", {
+        sessionId,
+        roleId: control._id,
+        injectId: controlInject._id,
+        inboundEventId: "safe-control",
+        canonicalDecision: "ROUTE_BAY_5",
+        rawTextRedacted: "ROUTE BAY 5",
+        parseMethod: "command",
+        status: "applied",
+        appliedAt: 30,
+        createdAt: 30,
+      });
+      return {
+        directorInjectId: directorInject._id,
+        expectedVersion: directorInject.version + 1,
+      };
+    });
+
+    await expect(
+      t.mutation(api.decisions.accept, {
+        inboundEventId: "safe-director",
+        conversationId: "safe-director",
+        injectId: context.directorInjectId,
+        expectedInjectVersion: context.expectedVersion,
+        canonicalDecision: "NOTIFY_COMMANDER",
+        parseMethod: "command",
+        rawTextRedacted: "NOTIFY COMMANDER",
+        now: 40,
+      }),
+    ).resolves.toMatchObject({ outcome: "applied", sessionFinalized: true });
+
+    const evidence = await t.run(async (ctx) => ({
+      session: await ctx.db.get(sessionId),
+      roles: await ctx.db
+        .query("roles")
+        .withIndex("by_session_role", (q) => q.eq("sessionId", sessionId))
+        .collect(),
+      injects: await ctx.db
+        .query("injects")
+        .withIndex("by_session_inject_key", (q) => q.eq("sessionId", sessionId))
+        .collect(),
+    }));
+    expect(evidence.session?.status).toBe("completed");
+    expect(evidence.roles.every(({ status }) => status === "completed")).toBe(
+      true,
+    );
+    expect(
+      Object.fromEntries(
+        evidence.injects.map(({ injectKey, status }) => [injectKey, status]),
+      ),
+    ).toEqual({
+      F1: "closed",
+      C1: "closed",
+      D1: "closed",
+      RF1: "cancelled",
+      RC1: "cancelled",
+      RD1: "cancelled",
+    });
+    await expect(
+      t.query(api.reports.getPublic, { publicCode: "SAFE" }),
+    ).resolves.toMatchObject({
+      status: "completed",
+      metrics: { coordinationScore: 100, contradictionCount: 0 },
+    });
   });
 
   it("publishes only safe channel health fields", async () => {
@@ -1009,6 +1378,7 @@ describe("Convex atomic state", () => {
       connectionId: "connection",
       channel: "email",
       senderFingerprint: "sender-hash",
+      mediaCount: 0,
       receivedAt: 1,
     });
 
