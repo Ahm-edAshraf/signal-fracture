@@ -10,6 +10,14 @@ All required credentials and CLI authentications were available during the 31 Ju
 
 ## Pending canonical live rehearsal
 
+If the existing operator secret is unavailable because its hosted value is hidden, rotate it without exposing it:
+
+```bash
+bash scripts/rotate-operator-secret.sh
+```
+
+The helper reads the replacement twice from `/dev/tty` with terminal echo disabled, requires at least 32 characters, updates the Vercel, Railway, and Convex production environments through their authenticated CLIs, clears its shell variables, and redeploys the worker and web application. Save the replacement in a password manager. Do not paste it into chat or a command argument.
+
 1. Open <https://signal-fracture.vercel.app/operator> and authenticate with the already configured operator secret.
 2. Select **Stage session**. The three single-use join commands appear once.
 3. Privately copy each command to its assigned participant and have them send it through the shown real channel:
