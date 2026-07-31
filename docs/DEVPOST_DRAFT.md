@@ -74,7 +74,7 @@ Gemini never owns world state or scenario control. Exact decisions bypass the mo
 - Real inbound, same-thread reply, and proactive persisted-conversation send verified on all 3 channels
 - Exactly 1 shared `client.onMessage(...)` registration
 - Durable production worker healthy with all 3 channels ready
-- 52 unit tests, 14 Convex integration tests, and 4 production-browser checks passing locally before the current production redeploy
+- 52 unit tests, 14 Convex integration tests, and 4 production-browser checks passing; the current Convex, Railway, and Vercel rollouts are healthy
 - Fresh public clone passes frozen installation and the complete root quality gate without project secrets
 - Canonical deterministic and Convex integration scenarios create and resolve exactly 1 Bay 3 contradiction
 - Completed reports have an authenticated, privacy-safe JSON export

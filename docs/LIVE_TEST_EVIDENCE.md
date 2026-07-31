@@ -121,8 +121,8 @@ Private addresses, connection identifiers, conversation identifiers, and sender 
 
 ## Fresh public clone — PASS
 
-- Source: public `main` branch at commit `2354ea5`
+- Source: public `main` branch at commit `d481623`
 - Location: isolated temporary directory with all project credentials explicitly unset
 - `bun install --frozen-lockfile`: PASS
 - `bun run check`: PASS
-- Result at that commit: 39 unit tests, 12 integration tests, package/worker build, and all seven rendered Next.js routes built successfully.
+- Result at that commit: 52 unit tests, 14 integration tests, package/worker build, and all seven rendered Next.js routes built successfully.
